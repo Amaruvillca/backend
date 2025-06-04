@@ -55,6 +55,43 @@ async def crear_producto(
         }
     else:
         raise HTTPException(status_code=500, detail="No se pudo guardar el producto")
+@router.put("/")
+async def actualizar_producto(
+    
+    datos: str = Form(...),
+    imagen: UploadFile = File(None),
+):
+    try:
+        datos_dict = json.loads(datos) 
+    except Exception as e:
+        raise HTTPException(status_code=400, detail="JSON inválido")
+
+    # Guardar imágenes
+    def guardar(imagen):
+        if imagen:
+            path = f"img/productos/{imagen.filename}"
+            os.makedirs("img/productos", exist_ok=True)
+            with open(path, "wb") as f:
+                shutil.copyfileobj(imagen.file, f)
+            return imagen.filename
+        return None
+
+    datos_dict["imagen"] = guardar(imagen)
+    # Crear el producto
+    producto = Producto()
+    producto.sincronizar(datos_dict)
+    if(producto.validar() == False):
+        raise HTTPException(status_code=400, detail=producto.errores)
+
+
+    if producto.guardar():
+        return {
+            "mensaje": "Producto actualizado exitosamente",
+            "id_producto": producto.id_producto
+        }
+    else:
+        raise HTTPException(status_code=500, detail="No se pudo guardar el producto")
+
 
 
 @router.get('/{id}')
