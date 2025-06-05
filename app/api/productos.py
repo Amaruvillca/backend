@@ -102,7 +102,16 @@ def mostrarProducto(id: int):
         "message": "Datos recuperados exitosamente",
         "data": resultado
     }    
-    
+@router.delete('/{id}')
+def eliminarProducto(id: int):
+    producto = Producto()
+    if producto.borrar(id):
+        return {
+            "message": "Producto eliminado exitosamente"
+        }
+    else:
+        raise HTTPException(status_code=500, detail="No se pudo eliminar el producto")
+
 IMAGENES_DIR = "./img/productos/"
 
 @router.get("/imagenes/{nombre_imagen}")
