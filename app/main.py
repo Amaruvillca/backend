@@ -1,9 +1,18 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
+from torchvision import models, transforms
+from torch.nn.functional import cosine_similarity
+from PIL import Image
+import torch
+import os
+
 from app.api import categorias, productos, sucursal, colorProducto, tallaProducto
 
 
 app = FastAPI()
+
 
 app.add_middleware(
     CORSMiddleware,
@@ -12,6 +21,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.mount("/img/productos", StaticFiles(directory="img/productos"), name="img_productos")
+
+
 app.include_router(productos.router, prefix="/productos", tags=["productos"])
 app.include_router(sucursal.router, prefix="/sucursales", tags=["sucursal"])
 app.include_router(categorias.router, prefix="/categorias", tags=["categorias"])
@@ -19,7 +31,77 @@ app.include_router(colorProducto.router, prefix="/colorProducto", tags=["colorPr
 app.include_router(tallaProducto.router, prefix="/tallaProducto", tags=["tallaProducto"])
 
 
-
 @app.get("/")
 def read_root():
     return "bien venido"
+
+# -----------------------------------------------
+# FUNCIONALIDAD DE COMPARACIÓN DE IMÁGENES CON IA
+# -----------------------------------------------
+
+# Carpeta con imágenes base
+IMAGE_DIR = "img/productos"
+
+# Transforms para ResNet50
+transform = transforms.Compose([
+    transforms.Resize((224, 224)),
+    transforms.ToTensor(),
+    transforms.Normalize(mean=[0.485, 0.456, 0.406],
+                         std=[0.229, 0.224, 0.225])
+])
+
+# Modelo ResNet50 sin la última capa (solo extracción de features)
+resnet = models.resnet50(pretrained=True)
+resnet = torch.nn.Sequential(*list(resnet.children())[:-1])
+resnet.eval()
+device = torch.device("cpu")
+resnet.to(device)
+
+# Función para extraer características de imagen
+def extract_features(image: Image.Image):
+    tensor = transform(image).unsqueeze(0).to(device)
+    with torch.no_grad():
+        features = resnet(tensor)
+    return features.view(-1)
+
+# Comparar imagen con las de la carpeta
+def compare_with_folder(uploaded_image: Image.Image, threshold: float = 0.8):
+    uploaded_features = extract_features(uploaded_image)
+    results = []
+
+    for filename in os.listdir(IMAGE_DIR):
+        if filename.lower().endswith((".jpg", ".jpeg", ".png")):
+            path = os.path.join(IMAGE_DIR, filename)
+            try:
+                image = Image.open(path).convert("RGB")
+                features = extract_features(image)
+                similarity = cosine_similarity(uploaded_features.unsqueeze(0), features.unsqueeze(0))
+                sim_score = similarity.item()
+                if sim_score >= threshold:
+                    results.append((filename, sim_score))
+            except Exception as e:
+                print(f"Error procesando {filename}: {e}")
+
+    results.sort(key=lambda x: x[1], reverse=True)
+    return results
+
+# Ruta de comparación
+@app.post("/comparar-imagenes")
+async def comparar_imagen(
+    file: UploadFile = File(...),
+    threshold: float = Form(0.8)
+):
+    try:
+        image = Image.open(file.file).convert("RGB")
+        similares = compare_with_folder(image, threshold)
+
+        return JSONResponse(content={
+            "resultados": [
+                {"imagen": nombre, "similitud": round(score, 4)}
+                for nombre, score in similares
+            ],
+            "total_resultados": len(similares)
+        })
+
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error al procesar la imagen: {str(e)}")

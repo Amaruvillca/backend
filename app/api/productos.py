@@ -9,6 +9,7 @@ from app.classes.Productos import Producto
 
 router = APIRouter()
 
+
 @router.get('/')
 def mostrarProductos():
     producto = Producto()
@@ -112,16 +113,3 @@ def eliminarProducto(id: int):
     else:
         raise HTTPException(status_code=500, detail="No se pudo eliminar el producto")
 
-IMAGENES_DIR = "./img/productos/"
-
-@router.get("/imagenes/{nombre_imagen}")
-async def servir_imagen(nombre_imagen: str):
-   
-    os.makedirs(IMAGENES_DIR, exist_ok=True)
-    
-    ruta_imagen = Path(IMAGENES_DIR) / nombre_imagen
-    
-    if not ruta_imagen.is_file():
-        return {"error": "Imagen no encontrada"}, 404
-    
-    return FileResponse(ruta_imagen)

@@ -7,6 +7,8 @@ class TallaProducto(Activerecord):
     columnas_db = [
         'id_talla_producto', 'talla', 'stock', 'descripcion', 'id_color_producto'
     ]
+    errores = []
+
     def __init__(self, id_talla_producto = None, talla = None, stock = None, descripcion = None, id_color_producto = None):
         self.id_talla_producto = id_talla_producto
         self.talla = talla

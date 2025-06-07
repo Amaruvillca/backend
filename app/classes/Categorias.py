@@ -7,6 +7,7 @@ class Categorias(Activerecord):
     columnas_db = [
         'id_categoria', 'nombre', 'descripcion', 'imagen', 'estado'
     ]
+    errores = [] 
     def __init__(self, id_categoria=None, nombre=None, descripcion=None,
                  imagen=None, estado=None):
         self.id_categoria = id_categoria

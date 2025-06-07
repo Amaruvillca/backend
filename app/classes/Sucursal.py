@@ -8,7 +8,8 @@ class Sucursal(Activerecord):
         'id_sucursal', 'nombre', 'imagen1', 'imagen2', 'imagen3',
         'telefono', 'fecha_apertura', 'direccion', 'ciudad',
         'latitud', 'longitud', 'estado'
-    ]   
+    ]
+    errores = [] 
     def __init__(self, id_sucursal=None, nombre=None,
                  imagen1=None, imagen2=None, imagen3=None,
                  telefono=None, fecha_apertura=None, direccion=None,
