@@ -7,6 +7,8 @@ Este proyecto es una API REST construida con **FastAPI** que permite:
 - Carga y almacenamiento de imágenes asociadas a productos y sucursales.
 - Arquitectura extensible y lista para producción.
 
+---
+
 ## 🚀 Características
 
 - 📷 Carga de imágenes para detección facial y productos.
@@ -15,6 +17,21 @@ Este proyecto es una API REST construida con **FastAPI** que permite:
 - 🏪 Gestión CRUD de sucursales, productos, categorías y usuarios.
 - 🌐 API REST lista para producción.
 - 🔧 Docker-ready y extensible para múltiples modelos y entidades.
+
+---
+
+## 📦 Librerías principales utilizadas
+
+- **[FastAPI](https://fastapi.tiangolo.com/)** - Framework principal para la API.
+- **[Uvicorn](https://www.uvicorn.org/)** - Servidor ASGI para desarrollo y producción.
+- **[SQLAlchemy](https://www.sqlalchemy.org/)** - ORM para la gestión de base de datos.
+- **[Pydantic](https://pydantic-docs.helpmanual.io/)** - Validación de datos y modelos.
+- **[python-multipart](https://andrew-d.github.io/python-multipart/)** - Manejo de formularios y archivos.
+- **[Pillow](https://python-pillow.org/)** - Procesamiento de imágenes.
+- **[TensorFlow](https://www.tensorflow.org/)** y/o **[Keras](https://keras.io/)** - Para el modelo ResNet50.
+- **[PyTorch](https://pytorch.org/)** - Alternativa para modelos de deep learning y procesamiento de imágenes.
+- **[NumPy](https://numpy.org/)** - Operaciones numéricas y manejo de arrays.
+- **[Shutil, OS, JSON, Pathlib]** - Librerías estándar para manejo de archivos y utilidades.
 
 ---
 
