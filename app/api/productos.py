@@ -113,3 +113,32 @@ def eliminarProducto(id: int):
     else:
         raise HTTPException(status_code=500, detail="No se pudo eliminar el producto")
 
+@router.get('/{id}/colores')
+def mostrarColoresProducto(id: int):
+    producto = Producto()
+    resultado = producto.colores(id)
+    return {
+        "message": "Colores del producto recuperados exitosamente",
+        "data": resultado
+    }
+
+@router.get('/{id}/colores/{id_color_producto}/tallas')
+def mostrarTallasProducto(id: int,id_color_producto: int):
+    producto = Producto()
+    resultado = producto.tallas(id_color_producto)
+    
+    return {
+        "message": "Tallas del producto recuperadas exitosamente",
+        "data": resultado
+    }
+    
+@router.get('/todo/{id}')
+def mostrarProducto(id: int):
+    producto = Producto()
+    resultado = producto.productos_colores_y_tallas(id)
+    if not resultado:
+        raise HTTPException(status_code=404, detail="Producto no encontrado")
+    return {
+        "message": "Datos recuperados exitosamente",
+        "data": resultado
+    } 

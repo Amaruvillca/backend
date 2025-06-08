@@ -1,3 +1,4 @@
 # ignore frontend folder
 frontend/
 temp_pip_downloads/
+app/img/

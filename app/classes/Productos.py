@@ -1,4 +1,8 @@
+from app.classes.Sucursal import Sucursal
+from app.classes.Categorias import Categorias
+from app.classes.TallaProducto import TallaProducto
 from app.classes.Activerecord import Activerecord
+from app.classes.ColorProducto import ColorProducto
 
 class Producto(Activerecord):
     TABLA = 'producto'  
@@ -48,3 +52,126 @@ class Producto(Activerecord):
             return False
         return len(self.errores) == 0
     
+    @classmethod
+    def colores(cls, id_producto):
+        conexion = cls.obtener_conexion()
+        try:
+            with conexion.cursor() as cursor:
+                query = """
+                    SELECT id_color_producto, colores, cod_producto, descripcion, imagen, id_producto 
+                    FROM color_producto 
+                    WHERE id_producto = %s
+                """
+                cursor.execute(query, (id_producto,))
+                resultados = cursor.fetchall()
+
+                # Creamos una lista de objetos ColorProducto
+                colores = []
+                for row in resultados:
+                    color = ColorProducto(
+                        id_color_producto=row[0],
+                        colores=row[1],
+                        cod_producto=row[2],
+                        descripcion=row[3],
+                        imagen=row[4],
+                        id_producto=row[5]
+                    )
+                    colores.append(color)
+                return colores
+
+        except Exception as e:
+            print(f'Error al obtener colores: {e}')
+            return []
+        finally:
+            cls.liberar_conexion(conexion)
+            
+            
+    @classmethod
+    def tallas(cls, id_color_producto):
+        conexion = cls.obtener_conexion()
+        try:
+            with conexion.cursor() as cursor:
+                query = """
+                    SELECT id_talla_producto, talla, stock, descripcion, id_color_producto
+                    FROM talla_producto
+                    WHERE id_color_producto = %s
+                """
+                cursor.execute(query, (id_color_producto,))
+                resultados = cursor.fetchall()
+
+                # Crear lista de objetos TallaProducto
+                tallas = []
+                for row in resultados:
+                    talla = TallaProducto(
+                        id_talla_producto=row[0],
+                        talla=row[1],
+                        stock=row[2],
+                        descripcion=row[3],
+                        id_color_producto=row[4]
+                    )
+                    tallas.append(talla)
+                return tallas
+
+        except Exception as e:
+            print(f'Error al obtener tallas: {e}')
+            print(f'Error al obtener tallas: {query}, {id_color_producto}')
+            return []
+        finally:
+            cls.liberar_conexion(conexion)
+        
+    @classmethod
+    def productos_colores_y_tallas(cls, id_producto):
+        # Obtener el producto
+        producto = Producto().find(id_producto)
+        sucursal = Sucursal()
+        categorias = Categorias()
+        cate = categorias.find(producto.id_categoria)
+        ca = cate.nombre
+        su= sucursal.find(producto.id_sucursal)
+        imagenCategoria = cate.imagen
+        if not producto:
+            return None
+
+        # Convertir producto a diccionario
+        producto_dict = {
+            "id_producto": producto.id_producto,
+            "nombre": producto.nombre,
+            "descripcion": producto.descripcion,
+            "imagen": producto.imagen,
+            "fecha_creacion": producto.fecha_creacion,
+            "genero": producto.genero,
+            "precio": producto.precio,
+            "para": producto.para,
+            "sucursal": su,
+            "categoria": cate,
+        }
+        # Obtener colores del producto
+        colores = cls.colores(id_producto)
+        colores_con_tallas = []
+
+        for color in colores:
+            color_dict = {
+                "id_color_producto": color.id_color_producto,
+                "colores": color.colores,
+                "cod_producto": color.cod_producto,
+                "descripcion": color.descripcion,
+                "imagen": color.imagen,
+                "id_producto": color.id_producto
+            }
+
+            # Obtener tallas para cada color
+            tallas = cls.tallas(color.id_color_producto)
+            color_dict["tallas"] = [{
+                "id_talla_producto": talla.id_talla_producto,
+                "talla": talla.talla,
+                "stock": talla.stock,
+                "descripcion": talla.descripcion,
+                "id_color_producto": talla.id_color_producto
+            } for talla in tallas]
+
+            colores_con_tallas.append(color_dict)
+
+        producto_dict["colores"] = colores_con_tallas
+        return producto_dict
+
+        

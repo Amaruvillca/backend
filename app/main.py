@@ -22,6 +22,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.mount("/img/productos", StaticFiles(directory="img/productos"), name="img_productos")
+app.mount("/img/producto_v", StaticFiles(directory="img/producto_v"), name="img_producto_variantes")
+app.mount("/img/sucursales", StaticFiles(directory="img/sucursales"), name="img_sucursales")
+app.mount("/img/clientes", StaticFiles(directory="img/clientes"), name="img_clientes")
+app.mount("/img/personal", StaticFiles(directory="img/personal"), name="img_personal")
+app.mount("/img/categorias", StaticFiles(directory="img/categorias"), name="img_categorias")
 
 
 app.include_router(productos.router, prefix="/productos", tags=["productos"])
@@ -29,6 +34,7 @@ app.include_router(sucursal.router, prefix="/sucursales", tags=["sucursal"])
 app.include_router(categorias.router, prefix="/categorias", tags=["categorias"])
 app.include_router(colorProducto.router, prefix="/colorProducto", tags=["colorProducto"])
 app.include_router(tallaProducto.router, prefix="/tallaProducto", tags=["tallaProducto"])
+
 
 
 @app.get("/")
