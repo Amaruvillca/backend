@@ -183,11 +183,14 @@ class Producto(Activerecord):
     
             with conexion.cursor() as cursor:
                 query = """
-                    SELECT id_producto, nombre, descripcion, imagen, fecha_creacion,
-                           genero, precio, para, id_sucursal, id_categoria
-                    FROM producto
-                    WHERE id_categoria = %s
-                    ORDER BY id_producto ASC
+                    SELECT p.id_producto, p.nombre, p.descripcion, p.imagen, p.fecha_creacion,
+                           p.genero, p.precio, p.para, p.id_sucursal, p.id_categoria,
+                           AVG(c.puntuacion) AS promedio_calificacion
+                    FROM producto p
+                    LEFT JOIN calificacion_producto c ON p.id_producto = c.id_producto
+                    WHERE p.id_categoria = %s
+                    GROUP BY p.id_producto
+                    ORDER BY p.id_producto ASC
                     LIMIT %s OFFSET %s
                 """
                 cursor.execute(query, (id_categoria, productos_por_pagina, offset))
@@ -207,6 +210,7 @@ class Producto(Activerecord):
                         id_sucursal=row[8],
                         id_categoria=row[9]
                     )
+                    producto.promedio_calificacion = float(row[10]) if row[10] is not None else 0
                     productos.append(producto)
     
                 return productos
@@ -217,8 +221,6 @@ class Producto(Activerecord):
         finally:
             cls.liberar_conexion(conexion)
 
-
-    
     @classmethod
     def productos_paginados(cls, pagina, cantidad_por_pagina=10):
         conexion = cls.obtener_conexion()
@@ -226,13 +228,60 @@ class Producto(Activerecord):
             offset = (pagina - 1) * cantidad_por_pagina
             with conexion.cursor() as cursor:
                 query = """
-                    SELECT id_producto, nombre, descripcion, imagen, fecha_creacion,
-                           genero, precio, para, id_sucursal, id_categoria
-                    FROM producto
-                    ORDER BY fecha_creacion DESC
+                    SELECT p.id_producto, p.nombre, p.descripcion, p.imagen, p.fecha_creacion,
+                           p.genero, p.precio, p.para, p.id_sucursal, p.id_categoria,
+                           AVG(c.puntuacion) AS promedio_calificacion
+                    FROM producto p
+                    LEFT JOIN calificacion_producto c ON p.id_producto = c.id_producto
+                    GROUP BY p.id_producto
+                    ORDER BY p.fecha_creacion DESC
                     LIMIT %s OFFSET %s
                 """
                 cursor.execute(query, (cantidad_por_pagina, offset))
+                resultados = cursor.fetchall()
+    
+                productos = []
+                for row in resultados:
+                    producto = Producto(
+                        id_producto=row[0],
+                        nombre=row[1],
+                        descripcion=row[2],
+                        imagen=row[3],
+                        fecha_creacion=row[4],
+                        genero=row[5],
+                        precio=row[6],
+                        para=row[7],
+                        id_sucursal=row[8],
+                        id_categoria=row[9]
+                    )
+                    producto.promedio_calificacion = (float(row[10]) if row[10] is not None else 0)
+                    productos.append(producto)
+    
+                return productos
+    
+        except Exception as e:
+            print(f'Error al obtener productos paginados: {e}')
+            return []
+        finally:
+            cls.liberar_conexion(conexion)
+    
+    
+    @classmethod
+    def mejores_calificados(cls):
+        conexion = cls.obtener_conexion()
+        try:
+            with conexion.cursor() as cursor:
+                query = """
+                    SELECT p.id_producto, p.nombre, p.descripcion, p.imagen, p.fecha_creacion,
+                           p.genero, p.precio, p.para, p.id_sucursal, p.id_categoria,
+                           AVG(c.puntuacion) AS promedio_calificacion
+                    FROM producto p
+                    JOIN calificacion_producto c ON p.id_producto = c.id_producto
+                    GROUP BY p.id_producto
+                    ORDER BY promedio_calificacion DESC
+                    LIMIT %s
+                """
+                cursor.execute(query, (10,))
                 resultados = cursor.fetchall()
 
                 productos = []
@@ -249,11 +298,220 @@ class Producto(Activerecord):
                         id_sucursal=row[8],
                         id_categoria=row[9]
                     )
+                    
+                    producto.promedio_calificacion = float(row[10]) if row[10] is not None else None
                     productos.append(producto)
+
                 return productos
 
         except Exception as e:
-            print(f'Error al obtener productos paginados: {e}')
+            print(f'Error al obtener productos mejor calificados: {e}')
+            return []
+        finally:
+            cls.liberar_conexion(conexion)
+
+    @classmethod
+    def mejores_calificados_paginados(cls, pagina=1, productos_por_pagina=10):
+        conexion = cls.obtener_conexion()
+        try:
+            offset = (pagina - 1) * productos_por_pagina
+            with conexion.cursor() as cursor:
+                query = """
+                    SELECT p.id_producto, p.nombre, p.descripcion, p.imagen, p.fecha_creacion,
+                           p.genero, p.precio, p.para, p.id_sucursal, p.id_categoria,
+                           AVG(c.puntuacion) AS promedio_calificacion
+                    FROM producto p
+                    JOIN calificacion_producto c ON p.id_producto = c.id_producto
+                    GROUP BY p.id_producto
+                    ORDER BY promedio_calificacion DESC
+                    LIMIT %s OFFSET %s
+                """
+                cursor.execute(query, (productos_por_pagina, offset))
+                resultados = cursor.fetchall()
+
+                productos = []
+                for row in resultados:
+                    producto = Producto(
+                        id_producto=row[0],
+                        nombre=row[1],
+                        descripcion=row[2],
+                        imagen=row[3],
+                        fecha_creacion=row[4],
+                        genero=row[5],
+                        precio=row[6],
+                        para=row[7],
+                        id_sucursal=row[8],
+                        id_categoria=row[9]
+                    )
+                    producto.promedio_calificacion = float(row[10]) if row[10] is not None else 0
+                    productos.append(producto)
+
+                return productos
+
+        except Exception as e:
+            print(f'Error al obtener productos mejor calificados paginados: {e}')
+            return []
+        finally:
+            cls.liberar_conexion(conexion)
+            
+    @classmethod
+    def productos_recientes(cls, limite=10):
+        conexion = cls.obtener_conexion()
+        try:
+            with conexion.cursor() as cursor:
+                query = """
+                    SELECT p.id_producto, p.nombre, p.descripcion, p.imagen, p.fecha_creacion,
+                           p.genero, p.precio, p.para, p.id_sucursal, p.id_categoria,
+                           AVG(c.puntuacion) AS promedio_calificacion
+                    FROM producto p
+                    LEFT JOIN calificacion_producto c ON p.id_producto = c.id_producto
+                    GROUP BY p.id_producto
+                    ORDER BY p.fecha_creacion DESC
+                    LIMIT %s
+                """
+                cursor.execute(query, (limite,))
+                resultados = cursor.fetchall()
+
+                productos = []
+                for row in resultados:
+                    producto = Producto(
+                        id_producto=row[0],
+                        nombre=row[1],
+                        descripcion=row[2],
+                        imagen=row[3],
+                        fecha_creacion=row[4],
+                        genero=row[5],
+                        precio=row[6],
+                        para=row[7],
+                        id_sucursal=row[8],
+                        id_categoria=row[9]
+                    )
+                    producto.promedio_calificacion = float(row[10]) if row[10] is not None else 0
+                    productos.append(producto)
+
+                return productos
+
+        except Exception as e:
+            print(f'Error al obtener productos recientes: {e}')
+            return []
+        finally:
+            cls.liberar_conexion(conexion)
+
+
+    @classmethod
+    def buscar_productos(cls, termino):
+        conexion = cls.obtener_conexion()
+        try:
+            palabras = termino.strip().lower().split()  # Divide por espacios y pasa todo a minúsculas
+
+            # Construir condiciones dinámicamente para cada palabra en múltiples columnas
+            condiciones = " OR ".join(
+                ["(LOWER(p.nombre) LIKE %s OR LOWER(p.descripcion) LIKE %s OR LOWER(p.genero) LIKE %s OR LOWER(p.para) LIKE %s)"]
+                * len(palabras)
+            )
+
+            query = f"""
+                SELECT p.id_producto, p.nombre, p.descripcion, p.imagen, p.fecha_creacion,
+                       p.genero, p.precio, p.para, p.id_sucursal, p.id_categoria,
+                       AVG(c.puntuacion) AS promedio_calificacion
+                FROM producto p
+                LEFT JOIN calificacion_producto c ON p.id_producto = c.id_producto
+                WHERE {condiciones}
+                GROUP BY p.id_producto
+                ORDER BY p.fecha_creacion DESC
+            """
+
+            # Crear los parámetros para cada palabra (4 columnas por palabra)
+            parametros = []
+            for palabra in palabras:
+                like = f"%{palabra}%"
+                parametros.extend([like] * 4)
+
+            with conexion.cursor() as cursor:
+                cursor.execute(query, tuple(parametros))
+                resultados = cursor.fetchall()
+
+                productos = []
+                for row in resultados:
+                    producto = Producto(
+                        id_producto=row[0],
+                        nombre=row[1],
+                        descripcion=row[2],
+                        imagen=row[3],
+                        fecha_creacion=row[4],
+                        genero=row[5],
+                        precio=row[6],
+                        para=row[7],
+                        id_sucursal=row[8],
+                        id_categoria=row[9]
+                    )
+                    producto.promedio_calificacion = float(row[10]) if row[10] is not None else 0
+                    productos.append(producto)
+
+                return productos
+
+        except Exception as e:
+            print(f'Error al buscar productos: {e}')
+            return []
+        finally:
+            cls.liberar_conexion(conexion)
+
+    @classmethod
+    def obtener_similares(cls, id_producto, limite=10):
+        conexion = cls.obtener_conexion()
+        try:
+            # Primero obtenemos el producto original
+            producto_actual = cls.find(id_producto)
+            if not producto_actual:
+                return []
+
+            nombre_actual = producto_actual.nombre
+            id_categoria = producto_actual.id_categoria
+
+            # Extraemos palabras clave del nombre (simples)
+            palabras_clave = nombre_actual.lower().split()
+            condiciones_like = " OR ".join(["p.nombre LIKE %s" for _ in palabras_clave])
+            parametros_like = [f"%{palabra}%" for palabra in palabras_clave]
+
+            with conexion.cursor() as cursor:
+                query = f"""
+                    SELECT p.id_producto, p.nombre, p.descripcion, p.imagen, p.fecha_creacion,
+                           p.genero, p.precio, p.para, p.id_sucursal, p.id_categoria,
+                           AVG(c.puntuacion) AS promedio_calificacion
+                    FROM producto p
+                    LEFT JOIN calificacion_producto c ON p.id_producto = c.id_producto
+                    WHERE p.id_producto != %s AND (
+                        p.id_categoria = %s OR {condiciones_like}
+                    )
+                    GROUP BY p.id_producto
+                    ORDER BY p.fecha_creacion DESC
+                    LIMIT %s
+                """
+                parametros = [id_producto, id_categoria] + parametros_like + [limite]
+                cursor.execute(query, parametros)
+                resultados = cursor.fetchall()
+
+                productos_similares = []
+                for row in resultados:
+                    producto = Producto(
+                        id_producto=row[0],
+                        nombre=row[1],
+                        descripcion=row[2],
+                        imagen=row[3],
+                        fecha_creacion=row[4],
+                        genero=row[5],
+                        precio=row[6],
+                        para=row[7],
+                        id_sucursal=row[8],
+                        id_categoria=row[9]
+                    )
+                    producto.promedio_calificacion = float(row[10]) if row[10] is not None else 0
+                    productos_similares.append(producto)
+
+                return productos_similares
+
+        except Exception as e:
+            print(f'Error al obtener productos similares: {e}')
             return []
         finally:
             cls.liberar_conexion(conexion)

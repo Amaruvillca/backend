@@ -93,8 +93,51 @@ async def actualizar_producto(
     else:
         raise HTTPException(status_code=500, detail="No se pudo guardar el producto")
 
+@router.get("/recientes")
+def obtener_productos_recientes():
+    productos = Producto.productos_recientes()
+
+    return {
+        "message": "Datos recuperados exitosamente",
+        "data": [producto.__dict__ for producto in productos]
+    }
+    
+@router.get("/buscar")
+def buscar_productos(busqueda: str):
+    productos = Producto.buscar_productos(busqueda)
+    return {
+        "message": "Datos recuperados exitosamente",
+        "data": [producto.__dict__ for producto in productos]
+    }
 
 
+@router.get("/recientes")
+def obtener_productos_recientes():
+    productos = Producto.productos_recientes()
+
+    return {
+        "message": "Datos recuperados exitosamente",
+        "data": [producto.__dict__ for producto in productos]
+    }
+
+@router.get("/mejorescalificados")
+def obtener_productos_mejor_calificados():
+    productos = Producto.mejores_calificados()
+    
+    return {
+        "message": "Datos recuperados exitosamente",
+        "data": [producto.__dict__ for producto in productos]
+    }
+@router.get("/mejorescalificados/{pagina}")
+def obtener_productos_mejor_calificados(pagina: int):
+    productos = Producto.mejores_calificados_paginados(pagina)
+    
+    return {
+        "message": "Datos recuperados exitosamente",
+        "data": [producto.__dict__ for producto in productos]
+    }
+
+    
 @router.get('/{id}')
 def mostrarProducto(id: int):
     producto = Producto()
@@ -112,6 +155,14 @@ def eliminarProducto(id: int):
         }
     else:
         raise HTTPException(status_code=500, detail="No se pudo eliminar el producto")
+@router.get("/{id_producto}/similares")
+def obtener_similares(id_producto: int):
+    productos = Producto.obtener_similares(id_producto=id_producto)
+
+    return {
+        "message": "Productos similares encontrados",
+        "data": [p.__dict__ for p in productos]
+    }
 
 @router.get('/{id}/colores')
 def mostrarColoresProducto(id: int):
