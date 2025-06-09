@@ -39,6 +39,7 @@ montar_directorio("img/sucursales", "/img/sucursales", "img_sucursales")
 montar_directorio("img/clientes", "/img/clientes", "img_clientes")
 montar_directorio("img/personal", "/img/personal", "img_personal")
 montar_directorio("img/categorias", "/img/categorias", "img_categorias")
+montar_directorio("img/baner_producto", "/img/baner_producto", "img_baner_producto")
 
 # Rutas de API
 app.include_router(productos.router, prefix="/productos", tags=["productos"])
