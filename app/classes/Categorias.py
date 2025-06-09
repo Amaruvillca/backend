@@ -15,3 +15,5 @@ class Categorias(Activerecord):
         self.descripcion = descripcion
         self.imagen = imagen
         self.estado = estado
+
+  

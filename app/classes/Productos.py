@@ -175,3 +175,85 @@ class Producto(Activerecord):
         return producto_dict
 
         
+    @classmethod
+    def mostrar_productos_categoria(cls, id_categoria, pagina=1, productos_por_pagina=10):
+        conexion = cls.obtener_conexion()
+        try:
+            offset = (pagina - 1) * productos_por_pagina
+    
+            with conexion.cursor() as cursor:
+                query = """
+                    SELECT id_producto, nombre, descripcion, imagen, fecha_creacion,
+                           genero, precio, para, id_sucursal, id_categoria
+                    FROM producto
+                    WHERE id_categoria = %s
+                    ORDER BY id_producto ASC
+                    LIMIT %s OFFSET %s
+                """
+                cursor.execute(query, (id_categoria, productos_por_pagina, offset))
+                resultados = cursor.fetchall()
+    
+                productos = []
+                for row in resultados:
+                    producto = Producto(
+                        id_producto=row[0],
+                        nombre=row[1],
+                        descripcion=row[2],
+                        imagen=row[3],
+                        fecha_creacion=row[4],
+                        genero=row[5],
+                        precio=row[6],
+                        para=row[7],
+                        id_sucursal=row[8],
+                        id_categoria=row[9]
+                    )
+                    productos.append(producto)
+    
+                return productos
+    
+        except Exception as e:
+            print(f'Error al obtener productos por categoría: {e}')
+            return []
+        finally:
+            cls.liberar_conexion(conexion)
+
+
+    
+    @classmethod
+    def productos_paginados(cls, pagina, cantidad_por_pagina=10):
+        conexion = cls.obtener_conexion()
+        try:
+            offset = (pagina - 1) * cantidad_por_pagina
+            with conexion.cursor() as cursor:
+                query = """
+                    SELECT id_producto, nombre, descripcion, imagen, fecha_creacion,
+                           genero, precio, para, id_sucursal, id_categoria
+                    FROM producto
+                    ORDER BY fecha_creacion DESC
+                    LIMIT %s OFFSET %s
+                """
+                cursor.execute(query, (cantidad_por_pagina, offset))
+                resultados = cursor.fetchall()
+
+                productos = []
+                for row in resultados:
+                    producto = Producto(
+                        id_producto=row[0],
+                        nombre=row[1],
+                        descripcion=row[2],
+                        imagen=row[3],
+                        fecha_creacion=row[4],
+                        genero=row[5],
+                        precio=row[6],
+                        para=row[7],
+                        id_sucursal=row[8],
+                        id_categoria=row[9]
+                    )
+                    productos.append(producto)
+                return productos
+
+        except Exception as e:
+            print(f'Error al obtener productos paginados: {e}')
+            return []
+        finally:
+            cls.liberar_conexion(conexion)

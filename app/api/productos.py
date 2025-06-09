@@ -142,3 +142,12 @@ def mostrarProducto(id: int):
         "message": "Datos recuperados exitosamente",
         "data": resultado
     } 
+    
+@router.get("/{pagina}/paginacion")
+def obtener_productos_paginados(pagina: int):
+    productos = Producto.productos_paginados(pagina)
+    
+    return {
+        "message": "Datos recuperados exitosamente",
+        "data": [producto.__dict__ for producto in productos]
+    }

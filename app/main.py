@@ -7,6 +7,7 @@ from torch.nn.functional import cosine_similarity
 from PIL import Image
 import torch
 import os
+from pathlib import Path
 
 from app.api import categorias, productos, sucursal, colorProducto, tallaProducto
 
@@ -21,32 +22,41 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-app.mount("/img/productos", StaticFiles(directory="img/productos"), name="img_productos")
-app.mount("/img/producto_v", StaticFiles(directory="img/producto_v"), name="img_producto_variantes")
-app.mount("/img/sucursales", StaticFiles(directory="img/sucursales"), name="img_sucursales")
-app.mount("/img/clientes", StaticFiles(directory="img/clientes"), name="img_clientes")
-app.mount("/img/personal", StaticFiles(directory="img/personal"), name="img_personal")
-app.mount("/img/categorias", StaticFiles(directory="img/categorias"), name="img_categorias")
 
+BASE_DIR = Path(__file__).resolve().parent
 
+def montar_directorio(ruta_relativa: str, url_mount: str, nombre: str):
+    path = BASE_DIR / ruta_relativa
+    if path.exists():
+        app.mount(url_mount, StaticFiles(directory=path), name=nombre)
+    else:
+        print(f"[AVISO] No se encontró la carpeta {path}, no se montará '{url_mount}'.")
+
+# Montar imágenes
+montar_directorio("img/productos", "/img/productos", "img_productos")
+montar_directorio("img/producto_v", "/img/producto_v", "img_producto_variantes")
+montar_directorio("img/sucursales", "/img/sucursales", "img_sucursales")
+montar_directorio("img/clientes", "/img/clientes", "img_clientes")
+montar_directorio("img/personal", "/img/personal", "img_personal")
+montar_directorio("img/categorias", "/img/categorias", "img_categorias")
+
+# Rutas de API
 app.include_router(productos.router, prefix="/productos", tags=["productos"])
 app.include_router(sucursal.router, prefix="/sucursales", tags=["sucursal"])
 app.include_router(categorias.router, prefix="/categorias", tags=["categorias"])
 app.include_router(colorProducto.router, prefix="/colorProducto", tags=["colorProducto"])
 app.include_router(tallaProducto.router, prefix="/tallaProducto", tags=["tallaProducto"])
 
-
-
 @app.get("/")
 def read_root():
-    return "bien venido"
+    return "Bienvenido a LookMarket"
 
 # -----------------------------------------------
 # FUNCIONALIDAD DE COMPARACIÓN DE IMÁGENES CON IA
 # -----------------------------------------------
 
 # Carpeta con imágenes base
-IMAGE_DIR = "img/productos"
+IMAGE_DIR = BASE_DIR / "img/productos"
 
 # Transforms para ResNet50
 transform = transforms.Compose([
@@ -111,3 +121,6 @@ async def comparar_imagen(
 
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Error al procesar la imagen: {str(e)}")
+
+
+
