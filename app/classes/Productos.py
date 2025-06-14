@@ -545,3 +545,73 @@ ORDER BY pp.fecha_creacion DESC;
             return []
         finally:
             cls.liberar_conexion(conexion)
+
+    @classmethod
+    def obtener_por_imagenes(cls, nombres_imagen: list[str]) -> list['Producto']:
+        """
+        Busca productos cuyos nombres de imagen coincidan exactamente con los proporcionados,
+        incluyendo el promedio de calificación como en obtener_similares().
+        
+        Args:
+            nombres_imagen (list[str]): Lista de nombres de imágenes (ej: ["camisa.jpg", "zapato.png"])
+            
+        Returns:
+            list[Producto]: Lista de objetos Producto con promedio_calificacion
+        """
+        if not nombres_imagen:
+            return []
+        
+        conexion = cls.obtener_conexion()
+        try:
+            with conexion.cursor() as cursor:
+                # Crear placeholders para la consulta IN
+                placeholders = ', '.join(['%s'] * len(nombres_imagen))
+                
+                query = f"""
+                    SELECT p.id_producto, p.nombre, p.descripcion, p.imagen, p.fecha_creacion,
+                           p.genero, p.precio, p.para, p.id_sucursal, p.id_categoria,
+                           AVG(c.puntuacion) AS promedio_calificacion
+                    FROM producto p
+                    LEFT JOIN calificacion_producto c ON p.id_producto = c.id_producto
+                    WHERE p.imagen IN ({placeholders})
+                    GROUP BY p.id_producto
+                    ORDER BY p.fecha_creacion DESC
+                """
+                
+                cursor.execute(query, nombres_imagen)
+                resultados = cursor.fetchall()
+                
+                productos = []
+                for row in resultados:
+                    producto = Producto(
+                        id_producto=row[0],
+                        nombre=row[1],
+                        descripcion=row[2],
+                        imagen=row[3],
+                        fecha_creacion=row[4],
+                        genero=row[5],
+                        precio=row[6],
+                        para=row[7],
+                        id_sucursal=row[8],
+                        id_categoria=row[9]
+                    )
+                    producto.promedio_calificacion = float(row[10]) if row[10] is not None else 0
+                    productos.append(producto)
+                
+                return productos
+        
+        except Exception as e:
+            print(f'Error al buscar productos por imágenes: {e}')
+            return []
+        finally:
+            cls.liberar_conexion(conexion)
+            
+    @classmethod
+    def mostrar_datos(cls,self):
+        """
+        Imprime todos los atributos del producto de forma legible.
+        """
+        print("Datos del producto:")
+        for atributo in self.columnas_db:
+            valor = getattr(self, atributo, None)
+            print(f"{atributo}: {valor}")

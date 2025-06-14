@@ -131,7 +131,8 @@ def buscar_productos(busqueda: str):
     productos = Producto.buscar_productos(busqueda)
     return {
         "message": "Datos recuperados exitosamente",
-        "data": [producto.__dict__ for producto in productos]
+        "data": [producto.__dict__ for producto in productos],
+        "total": len(productos) 
     }
 
 @router.get("/banner")

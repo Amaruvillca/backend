@@ -2,6 +2,8 @@
 frontend/
 temp_pip_downloads/
 app/img/
+app/__pycache__/
 app/image_features_cache.pkl
 __pycache__/
+**/__pycache__/
 .idea/

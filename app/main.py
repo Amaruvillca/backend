@@ -1,3 +1,4 @@
+import PIL
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -13,6 +14,7 @@ from pathlib import Path
 
 # Import API routers
 from app.api import categorias, productos, sucursal, colorProducto, tallaProducto
+from app.classes.Productos import Producto
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -131,21 +133,60 @@ def compare_images(uploaded_features: torch.Tensor, threshold: float = 0.8) -> l
 @app.post("/comparar-imagenes")
 async def compare_image(
     file: UploadFile = File(...),
-    threshold: float = Form(0.5)
+    threshold: float = Form(0.7)
 ):
-    """Endpoint for image comparison"""
+    """Endpoint que devuelve productos con imágenes similares ordenados por similitud"""
     try:
+        # 1. Procesar imagen y obtener imágenes similares con sus scores
         image = Image.open(file.file).convert("RGB")
-        uploaded_features = extract_features(image)
-        similar_images = compare_images(uploaded_features, threshold)
+        similar_images = compare_images(extract_features(image), threshold)  # [(nombre_imagen, score), ...]
+        
+        if not similar_images:
+            return {
+                "message": "No se encontraron imágenes similares",
+                "data": [],
+                "total_similares": 0
+            }
 
-        return JSONResponse(content={
-            "resultados": [
-                {"imagen": name, "similitud": round(score, 4)}
-                for name, score in similar_images
-            ],
-            "total_resultados": len(similar_images)
-        })
+        # 2. Ordenar por score de similitud (mayor primero)
+        similar_images.sort(key=lambda x: x[1], reverse=True)
+        
+        # 3. Obtener nombres de imágenes ordenadas
+        similar_image_names = [img[0] for img in similar_images]
+        
+        # 4. Obtener productos manteniendo el orden de similitud
+        productos_similares = Producto.obtener_por_imagenes(similar_image_names)
+        
+        # 5. Crear mapeo de imagen a producto para preservar el orden
+        producto_por_imagen = {p.imagen: p for p in productos_similares}
+        
+        # 6. Construir respuesta ordenada con scores
+        respuesta_ordenada = []
+        for img_name, score in similar_images:
+            if img_name in producto_por_imagen:
+                p = producto_por_imagen[img_name]
+                respuesta_ordenada.append({
+                    "id_producto": p.id_producto,
+                    "nombre": p.nombre,
+                    "descripcion": p.descripcion,
+                    "imagen": p.imagen,
+                    "fecha": p.fecha_creacion,
+                    "genero": p.genero,
+                    "precio": float(p.precio),
+                    "para": p.para,
+                    "id_sucursal": p.id_sucursal,
+                    "id_categoria": p.id_categoria,
+                    "promedio_calificacion": getattr(p, 'promedio_calificacion', 0),
+                    "similitud": float(score)  # Incluimos el score de similitud
+                })
 
+        return {
+            "message": "Datos recuperados exitosamente",
+            "data": respuesta_ordenada,
+            "total_similares": len(respuesta_ordenada)
+        }
+
+    except PIL.UnidentifiedImageError:
+        raise HTTPException(status_code=400, detail="Archivo no es una imagen válida")
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Image processing error: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
