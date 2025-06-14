@@ -9,13 +9,13 @@ class Producto(Activerecord):
     nombre_id = 'id_producto'
     columnas_db = [
         'id_producto', 'nombre', 'descripcion', 'imagen', 'fecha_creacion',
-        'genero', 'precio', 'para', 'id_sucursal', 'id_categoria'
+        'genero', 'precio', 'para', 'id_sucursal', 'id_categoria','banner_producto'
     ]
     errores = [] 
 
     def __init__(self, id_producto=None, nombre=None, descripcion=None, imagen=None,
                  fecha_creacion=None, genero=None, precio=None, para=None,
-                 id_sucursal=None, id_categoria=None):
+                 id_sucursal=None, id_categoria=None,banner_producto=None):
         self.id_producto = id_producto
         self.nombre = nombre
         self.descripcion = descripcion
@@ -26,6 +26,8 @@ class Producto(Activerecord):
         self.para = para
         self.id_sucursal = id_sucursal
         self.id_categoria = id_categoria
+        self.banner_producto = banner_producto
+
 
     def validar(self) -> bool:
         self.errores = []
@@ -47,6 +49,9 @@ class Producto(Activerecord):
             self.errores.append("La fecha de creación es obligatoria.")
         if not self.para:
             self.errores.append("El campo 'para' es obligatorio.")
+        if not self.banner_producto:
+            self.errores.append("El  banner del producto es obligatorio.")
+
         if self.errores:
             print(f"Errores de validación: {self.errores}")
             return False
@@ -228,14 +233,18 @@ class Producto(Activerecord):
             offset = (pagina - 1) * cantidad_por_pagina
             with conexion.cursor() as cursor:
                 query = """
-                    SELECT p.id_producto, p.nombre, p.descripcion, p.imagen, p.fecha_creacion,
-                           p.genero, p.precio, p.para, p.id_sucursal, p.id_categoria,
-                           AVG(c.puntuacion) AS promedio_calificacion
-                    FROM producto p
-                    LEFT JOIN calificacion_producto c ON p.id_producto = c.id_producto
-                    GROUP BY p.id_producto
-                    ORDER BY p.fecha_creacion DESC
-                    LIMIT %s OFFSET %s
+                WITH productos_paginados AS (
+    SELECT p.id_producto, p.nombre, p.descripcion, p.imagen, p.fecha_creacion,
+           p.genero, p.precio, p.para, p.id_sucursal, p.id_categoria
+    FROM producto p
+    ORDER BY p.fecha_creacion DESC
+    LIMIT %s OFFSET %s
+)
+SELECT pp.*, AVG(c.puntuacion) AS promedio_calificacion
+FROM productos_paginados pp
+LEFT JOIN calificacion_producto c ON pp.id_producto = c.id_producto
+GROUP BY pp.id_producto
+ORDER BY pp.fecha_creacion DESC;
                 """
                 cursor.execute(query, (cantidad_por_pagina, offset))
                 resultados = cursor.fetchall()
@@ -512,6 +521,27 @@ class Producto(Activerecord):
 
         except Exception as e:
             print(f'Error al obtener productos similares: {e}')
+            return []
+        finally:
+            cls.liberar_conexion(conexion)
+
+    @classmethod
+    def obtener_banners_aleatorios(cls, limite=3):
+        conexion = cls.obtener_conexion()
+        try:
+            with conexion.cursor() as cursor:
+                query = """
+                    SELECT id_producto, nombre, precio, banner_producto 
+                    FROM producto 
+                    WHERE banner_producto IS NOT NULL
+                    ORDER BY RAND() 
+                    LIMIT %s
+                """
+                cursor.execute(query, (limite,))
+                return cursor.fetchall()  # Devuelve lista de tuplas
+
+        except Exception as e:
+            print(f'Error al obtener banners: {e}')
             return []
         finally:
             cls.liberar_conexion(conexion)

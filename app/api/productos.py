@@ -4,17 +4,25 @@ from fastapi import APIRouter, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from pathlib import Path  
 import os
+import os
+import shutil
+import uuid
 
 from app.classes.Productos import Producto
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+# Ruta a la carpeta de imágenes
+RUTA_BANNER = BASE_DIR / "img" / "baner_producto"
+RUTA_PRODUCTO = BASE_DIR / "img" / "productos"
 
 router = APIRouter()
 
 
 @router.get('/')
-def mostrarProductos():
+async def mostrarProductos():
     producto = Producto()
     resultado = producto.all()
-    return {
+    return  {
         "message": "Datos recuperados exitosamente",
         "data": resultado
     }
@@ -61,6 +69,7 @@ async def actualizar_producto(
     
     datos: str = Form(...),
     imagen: UploadFile = File(None),
+    banner: UploadFile = File(None),
 ):
     try:
         datos_dict = json.loads(datos) 
@@ -68,16 +77,31 @@ async def actualizar_producto(
         raise HTTPException(status_code=400, detail="JSON inválido")
 
     # Guardar imágenes
+    
     def guardar(imagen):
         if imagen:
-            path = f"img/productos/{imagen.filename}"
-            os.makedirs("img/productos", exist_ok=True)
+            ext = os.path.splitext(imagen.filename)[1]  # Extrae extensión
+            nombre_unico = f"{uuid.uuid4().hex}{ext}"  # Genera nombre único con la misma extensión
+            path = os.path.join(RUTA_PRODUCTO, nombre_unico)
+            os.makedirs(RUTA_PRODUCTO, exist_ok=True)
             with open(path, "wb") as f:
                 shutil.copyfileobj(imagen.file, f)
-            return imagen.filename
+            return nombre_unico
+        return None
+
+    def guardarB(imagen):
+        if imagen:
+            ext = os.path.splitext(imagen.filename)[1]
+            nombre_unico = f"{uuid.uuid4().hex}{ext}"
+            path = os.path.join(RUTA_BANNER, nombre_unico)
+            os.makedirs(RUTA_BANNER, exist_ok=True)
+            with open(path, "wb") as f:
+                shutil.copyfileobj(imagen.file, f)
+            return nombre_unico
         return None
 
     datos_dict["imagen"] = guardar(imagen)
+    datos_dict["banner_producto"] = guardarB(banner)
     # Crear el producto
     producto = Producto()
     producto.sincronizar(datos_dict)
@@ -108,6 +132,23 @@ def buscar_productos(busqueda: str):
     return {
         "message": "Datos recuperados exitosamente",
         "data": [producto.__dict__ for producto in productos]
+    }
+
+@router.get("/banner")
+def obtener_banners(cantidad: int = 3):
+    banners = Producto.obtener_banners_aleatorios(cantidad)
+    
+    # Formatear respuesta
+    data = [{
+        "id": b[0],
+        "nombre": b[1],
+        "precio": float(b[2]),
+        "banner_url": b[3]  # Este es el campo importante
+    } for b in banners]
+    
+    return {
+        "message": "Banners recuperados exitosamente",
+        "data": data
     }
 
 
