@@ -1,7 +1,10 @@
 # app/classes/activerecord.py
 from abc import ABC, abstractmethod
+import logging
 from app.config.conexion import Conexion
 from typing import List, Dict, Union, Optional
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class Activerecord(ABC):
     TABLA = '' 
@@ -77,6 +80,8 @@ class Activerecord(ABC):
                 columns = ', '.join(atributos.keys())
                 placeholders = ', '.join(['%s'] * len(atributos))
                 query = f"INSERT INTO {self.TABLA} ({columns}) VALUES ({placeholders})"
+                logger.debug("Query SQL: %s", query)
+                logger.debug("Valores: %s", list(atributos.values()))
                 cursor.execute(query, list(atributos.values()))
                 conexion.commit()
                 
@@ -85,6 +90,9 @@ class Activerecord(ABC):
                 return True
         except Exception as e:
             print(f'Error in _insertar(): {e}')
+            logger.debug(f'Error in _insertar(): {e}')
+            
+            
             return False
         finally:
             self.liberar_conexion(conexion)

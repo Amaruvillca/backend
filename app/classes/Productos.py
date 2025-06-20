@@ -227,30 +227,23 @@ class Producto(Activerecord):
             cls.liberar_conexion(conexion)
 
     @classmethod
-    def productos_paginados(cls, pagina, cantidad_por_pagina=10):
+    def productos_paginados(cls, pagina, cantidad_por_pagina=6):
         conexion = cls.obtener_conexion()
         try:
             offset = (pagina - 1) * cantidad_por_pagina
             with conexion.cursor() as cursor:
-                query = """
-                WITH productos_paginados AS (
-    SELECT p.id_producto, p.nombre, p.descripcion, p.imagen, p.fecha_creacion,
-           p.genero, p.precio, p.para, p.id_sucursal, p.id_categoria
-    FROM producto p
-    ORDER BY p.fecha_creacion DESC
-    LIMIT %s OFFSET %s
-)
-SELECT pp.*, AVG(c.puntuacion) AS promedio_calificacion
-FROM productos_paginados pp
-LEFT JOIN calificacion_producto c ON pp.id_producto = c.id_producto
-GROUP BY pp.id_producto
-ORDER BY pp.fecha_creacion DESC;
-                """
-                cursor.execute(query, (cantidad_por_pagina, offset))
-                resultados = cursor.fetchall()
-    
+                cursor.execute("""
+                    SELECT 
+                        id_producto, nombre, descripcion, imagen, 
+                        fecha_creacion, genero, precio, para, 
+                        id_sucursal, id_categoria
+                    FROM producto
+                    ORDER BY id_producto  DESC
+                    LIMIT %s OFFSET %s;
+                """, (cantidad_por_pagina, offset))
+
                 productos = []
-                for row in resultados:
+                for row in cursor.fetchall():
                     producto = Producto(
                         id_producto=row[0],
                         nombre=row[1],
@@ -263,11 +256,12 @@ ORDER BY pp.fecha_creacion DESC;
                         id_sucursal=row[8],
                         id_categoria=row[9]
                     )
-                    producto.promedio_calificacion = (float(row[10]) if row[10] is not None else 0)
+                    # Asignar 0.0 como valor por defecto
+                    producto.promedio_calificacion = 0.0
                     productos.append(producto)
-    
+
                 return productos
-    
+
         except Exception as e:
             print(f'Error al obtener productos paginados: {e}')
             return []
@@ -280,13 +274,15 @@ ORDER BY pp.fecha_creacion DESC;
         conexion = cls.obtener_conexion()
         try:
             with conexion.cursor() as cursor:
+                # Primero intentamos obtener los mejor calificados
                 query = """
                     SELECT p.id_producto, p.nombre, p.descripcion, p.imagen, p.fecha_creacion,
                            p.genero, p.precio, p.para, p.id_sucursal, p.id_categoria,
                            AVG(c.puntuacion) AS promedio_calificacion
                     FROM producto p
-                    JOIN calificacion_producto c ON p.id_producto = c.id_producto
+                    LEFT JOIN calificacion_producto c ON p.id_producto = c.id_producto
                     GROUP BY p.id_producto
+                    HAVING AVG(c.puntuacion) IS NOT NULL
                     ORDER BY promedio_calificacion DESC
                     LIMIT %s
                 """
@@ -307,9 +303,36 @@ ORDER BY pp.fecha_creacion DESC;
                         id_sucursal=row[8],
                         id_categoria=row[9]
                     )
-                    
-                    producto.promedio_calificacion = float(row[10]) if row[10] is not None else None
+                    producto.promedio_calificacion = float(row[10]) if row[10] is not None else 0.0
                     productos.append(producto)
+
+                # Si no hay productos calificados, obtenemos 10 aleatorios
+                if not productos:
+                    query_random = """
+                        SELECT id_producto, nombre, descripcion, imagen, fecha_creacion,
+                               genero, precio, para, id_sucursal, id_categoria
+                        FROM producto
+                        ORDER BY RAND()
+                        LIMIT %s
+                    """
+                    cursor.execute(query_random, (10,))
+                    resultados_random = cursor.fetchall()
+
+                    for row in resultados_random:
+                        producto = Producto(
+                            id_producto=row[0],
+                            nombre=row[1],
+                            descripcion=row[2],
+                            imagen=row[3],
+                            fecha_creacion=row[4],
+                            genero=row[5],
+                            precio=row[6],
+                            para=row[7],
+                            id_sucursal=row[8],
+                            id_categoria=row[9]
+                        )
+                        producto.promedio_calificacion = float(4.5)  # Se asegura que sea flotante
+                        productos.append(producto)
 
                 return productos
 
@@ -395,7 +418,7 @@ ORDER BY pp.fecha_creacion DESC;
                         id_sucursal=row[8],
                         id_categoria=row[9]
                     )
-                    producto.promedio_calificacion = float(row[10]) if row[10] is not None else 0
+                    producto.promedio_calificacion = float(row[10]) if row[10] is not None else 0.0
                     productos.append(producto)
 
                 return productos
@@ -454,7 +477,7 @@ ORDER BY pp.fecha_creacion DESC;
                         id_sucursal=row[8],
                         id_categoria=row[9]
                     )
-                    producto.promedio_calificacion = float(row[10]) if row[10] is not None else 0
+                    producto.promedio_calificacion = float(row[10]) if row[10] is not None else 0.0
                     productos.append(producto)
 
                 return productos
@@ -514,7 +537,7 @@ ORDER BY pp.fecha_creacion DESC;
                         id_sucursal=row[8],
                         id_categoria=row[9]
                     )
-                    producto.promedio_calificacion = float(row[10]) if row[10] is not None else 0
+                    producto.promedio_calificacion = float(row[10]) if row[10] is not None else 0.0
                     productos_similares.append(producto)
 
                 return productos_similares
@@ -615,3 +638,17 @@ ORDER BY pp.fecha_creacion DESC;
         for atributo in self.columnas_db:
             valor = getattr(self, atributo, None)
             print(f"{atributo}: {valor}")
+            
+    @classmethod
+    def obtener_promedio_calificacion(cls, id_producto):
+        conexion = cls.obtener_conexion()
+        try:
+            with conexion.cursor() as cursor:
+                cursor.execute("""
+                    SELECT COALESCE(AVG(puntuacion), 0)
+                    FROM calificacion_producto
+                    WHERE id_producto = %s;
+                """, (id_producto,))
+                return float(cursor.fetchone()[0])
+        finally:
+            cls.liberar_conexion(conexion)

@@ -1,3 +1,4 @@
+import logging
 import PIL
 from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,12 +14,14 @@ import os
 from pathlib import Path
 
 # Import API routers
-from app.api import categorias, productos, sucursal, colorProducto, tallaProducto
+from app.api import categorias, productos, sucursal, colorProducto, tallaProducto, clientes
 from app.classes.Productos import Producto
 
 # Initialize FastAPI app
 app = FastAPI()
-
+# Configura logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
@@ -54,6 +57,7 @@ app.include_router(sucursal.router, prefix="/sucursales", tags=["sucursal"])
 app.include_router(categorias.router, prefix="/categorias", tags=["categorias"])
 app.include_router(colorProducto.router, prefix="/colorProducto", tags=["colorProducto"])
 app.include_router(tallaProducto.router, prefix="/tallaProducto", tags=["tallaProducto"])
+app.include_router(clientes.router, prefix="/clientes", tags=["clientes"])
 
 # Root endpoint
 @app.get("/")
@@ -145,7 +149,7 @@ async def compare_image(
             return {
                 "message": "No se encontraron imágenes similares",
                 "data": [],
-                "total_similares": 0
+                # "total_similares": 0
             }
 
         # 2. Ordenar por score de similitud (mayor primero)
@@ -176,14 +180,14 @@ async def compare_image(
                     "para": p.para,
                     "id_sucursal": p.id_sucursal,
                     "id_categoria": p.id_categoria,
-                    "promedio_calificacion": getattr(p, 'promedio_calificacion', 0),
-                    "similitud": float(score)  # Incluimos el score de similitud
+                    "promedio_calificacion": float(getattr(p, 'promedio_calificacion', 0.0)),
+                   # "similitud": float(score)  # Incluimos el score de similitud
                 })
 
         return {
             "message": "Datos recuperados exitosamente",
             "data": respuesta_ordenada,
-            "total_similares": len(respuesta_ordenada)
+            # "total_similares": len(respuesta_ordenada)
         }
 
     except PIL.UnidentifiedImageError:
