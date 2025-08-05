@@ -1,4 +1,4 @@
-# 🧠 API REST de Reconocimiento Facial y Gestión Empresarial con FastAPI
+ki# 🧠 API REST de Reconocimiento Facial y Gestión Empresarial con FastAPI
 
 Este proyecto es una API REST construida con **FastAPI** que permite:
 
@@ -98,7 +98,6 @@ uvicorn app.main:app --reload
 
 - Las imágenes subidas se almacenan en la carpeta `img/`.
 - Puedes probar los endpoints desde la documentación Swagger.
-- El frontend HTML se encuentra en la carpeta `frontend/`.
 
 ---
 
