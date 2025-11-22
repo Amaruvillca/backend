@@ -35,3 +35,13 @@ async def crearCarrito(request: Request):
         raise HTTPException(status_code=400, detail="Error al crear el carrito"+carrito.atributos())
     
     return JSONResponse(status_code=200, content={"message": "Carrito creado exitosamente", "data": carrito.atributos()})
+@router.delete('/{id_carrito}')
+def eliminarCarrito(id_carrito: int):
+    carrito = Carrito.find(id_carrito)
+    if not carrito:
+        raise HTTPException(status_code=404, detail="Carrito no encontrado")
+
+    if not Carrito.eliminar_carritos_por_cliente(id_carrito):
+        raise HTTPException(status_code=400, detail="Error al eliminar el carrito")
+    
+    return JSONResponse(status_code=200, content={"message": "Carrito eliminado exitosamente"})

@@ -312,7 +312,7 @@ class Producto(Activerecord):
                         SELECT id_producto, nombre, descripcion, imagen, fecha_creacion,
                                genero, precio, para, id_sucursal, id_categoria
                         FROM producto
-                        ORDER BY RAND()
+                        ORDER BY RANDOM()
                         LIMIT %s
                     """
                     cursor.execute(query_random, (10,))
@@ -557,7 +557,7 @@ class Producto(Activerecord):
                     SELECT id_producto, nombre, precio, banner_producto 
                     FROM producto 
                     WHERE banner_producto IS NOT NULL
-                    ORDER BY RAND() 
+                    ORDER BY RANDOM() 
                     LIMIT %s
                 """
                 cursor.execute(query, (limite,))

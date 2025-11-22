@@ -1,9 +1,10 @@
+from datetime import date
 import logging
 import shutil
 import uuid
 import cv2
 from fastapi import APIRouter, File, Form, UploadFile
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from pathlib import Path  
 import os
 from fastapi import HTTPException
@@ -211,7 +212,7 @@ async def verificar_imagen(
             }
 # Verificar enfoque
         nivel_enfoque = calcular_nivel_enfoque(img)
-        UMBRAL_ENFOQUE = 100  # Ajusta este valor según tus necesidades
+        UMBRAL_ENFOQUE =30  # Ajusta este valor según tus necesidades
         
         if nivel_enfoque < UMBRAL_ENFOQUE:
             return {
@@ -253,8 +254,8 @@ async def verificar_imagen(
             }
         
         #Detección mejorada de accesorios
-        has_glasses = bool(detect_glasses_improved(face_image, face_landmarks[0]))
-        has_hat = bool(detect_headwear_fast(face_image, face_landmarks[0]))
+        has_glasses = bool(detect_glasses_selfie(face_image, face_landmarks[0]))
+        has_hat = bool(detect_headwear_improved(face_image, face_landmarks[0]))
         
         if has_glasses or has_hat:
             return {
@@ -298,135 +299,287 @@ async def verificar_imagen(
             detail="Error interno al procesar la imagen"
         )
 
-def detect_glasses_improved(face_image, landmarks, debug=False):
+import cv2
+import numpy as np
+import mediapipe as mp
+
+mp_face_mesh = mp.solutions.face_mesh
+
+import cv2
+import numpy as np
+import mediapipe as mp
+import base64
+
+mp_face_mesh = mp.solutions.face_mesh
+
+def detect_glasses_selfie(image_input, debug=False):
     """
-    Detección optimizada para Flutter con:
-    - Cámara frontal (selfies)
-    - ResolutionPreset.high
-    - Formato YUV420
-    - Mejor adaptación a condiciones variables de luz
+    Detección de lentes optimizada para selfies frontales.
+    Recibe:
+      - np.ndarray (imagen ya cargada, RGB o BGR)
+      - bytes
+      - base64 string (data:image/jpeg;base64,...)
+    No acepta rutas de archivo.
     """
-    if 'left_eye' not in landmarks or 'right_eye' not in landmarks:
+
+    # === 1. Cargar correctamente la imagen según su tipo ===
+    if isinstance(image_input, np.ndarray):
+        img = image_input
+    elif isinstance(image_input, bytes):
+        img = cv2.imdecode(np.frombuffer(image_input, np.uint8), cv2.IMREAD_COLOR)
+    elif isinstance(image_input, str) and image_input.startswith("data:image"):
+        header, encoded = image_input.split(",", 1)
+        img_data = base64.b64decode(encoded)
+        img = cv2.imdecode(np.frombuffer(img_data, np.uint8), cv2.IMREAD_COLOR)
+    else:
+        raise ValueError("Formato de imagen no válido. Debe ser ndarray, bytes o base64 string.")
+
+    if img is None:
+        raise ValueError("❌ No se pudo decodificar la imagen correctamente.")
+
+    # Convertir a RGB (MediaPipe trabaja en RGB)
+    if img.shape[2] == 3:
+        rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    else:
+        rgb = img.copy()
+
+    # === 2. Detección facial con MediaPipe FaceMesh ===
+    with mp_face_mesh.FaceMesh(static_image_mode=True, max_num_faces=1,
+                               refine_landmarks=True, min_detection_confidence=0.6) as face_mesh:
+        results = face_mesh.process(rgb)
+
+    if not results.multi_face_landmarks:
+        if debug:
+            print("⚠️ No se detectó rostro.")
         return False
 
-    # 1. Preprocesamiento específico para YUV420 de móvil
-    if len(face_image.shape) == 3:
-        gray = cv2.cvtColor(face_image, cv2.COLOR_RGB2GRAY)
-        # Corrección de contraste para selfies
-        gray = cv2.equalizeHist(gray)
-        gray = cv2.GaussianBlur(gray, (3, 3), 0)
-    else:
-        gray = face_image
-    
-    # 2. Ajustar región ocular para selfies frontales
-    left_eye = np.array(landmarks['left_eye'])
-    right_eye = np.array(landmarks['right_eye'])
-    
-    # Área más amplia para compensar calidad móvil
-    eye_region_width = int(face_image.shape[1] * 0.4)
-    eye_region_height = int(face_image.shape[0] * 0.25)
-    
-    # Calcular ROI centrada en ojos
-    eyes_center_x = int((left_eye[:, 0].mean() + right_eye[:, 0].mean()) / 2)
-    eyes_center_y = int((left_eye[:, 1].mean() + right_eye[:, 1].mean()) / 2)
-    
-    x1 = max(0, eyes_center_x - eye_region_width // 2)
-    x2 = min(face_image.shape[1], eyes_center_x + eye_region_width // 2)
-    y1 = max(0, eyes_center_y - eye_region_height // 3)
-    y2 = min(face_image.shape[0], eyes_center_y + eye_region_height // 3)
-    
-    eye_roi = gray[y1:y2, x1:x2]
-    
-    # 3. Detección mejorada para móviles
-    ## a. Detección de marcos con parámetros adaptativos
-    edges = cv2.Canny(eye_roi, 30, 100, apertureSize=3)
-    lines = cv2.HoughLinesP(edges, 1, np.pi/180, 
-                          threshold=15,  # Más bajo para calidad móvil
-                          minLineLength=10, 
-                          maxLineGap=5)
-    
-    ## b. Análisis de reflectividad en ROI
-    hsv = cv2.cvtColor(face_image[y1:y2, x1:x2], cv2.COLOR_RGB2HSV) if len(face_image.shape) == 3 \
-          else cv2.cvtColor(cv2.cvtColor(face_image[y1:y2, x1:x2], cv2.COLOR_GRAY2BGR), cv2.COLOR_BGR2HSV)
-    
-    brightness = np.mean(hsv[:,:,2])
-    saturation = np.mean(hsv[:,:,1])
-    
-    ## c. Detección de lentes oscuros con umbral dinámico
-    avg_brightness = np.mean(gray)
-    dark_threshold = max(30, avg_brightness * 0.3)  # Umbral más bajo para móviles
-    
-    # 4. Sistema de puntuación mejorado
+    face_landmarks = results.multi_face_landmarks[0]
+    h, w, _ = rgb.shape
+    pts = [(int(p.x * w), int(p.y * h)) for p in face_landmarks.landmark]
+
+    # Índices aproximados de ojos y cejas
+    left_eye_idx = [33, 133, 159, 145, 153]
+    right_eye_idx = [362, 263, 386, 374, 380]
+    left_brow_idx = [55, 65, 52, 53, 46]
+    right_brow_idx = [285, 295, 282, 283, 276]
+
+    def get_region(idx_list):
+        pts_region = np.array([pts[i] for i in idx_list])
+        x1, y1 = np.min(pts_region, axis=0)
+        x2, y2 = np.max(pts_region, axis=0)
+        return [max(0, x1-5), max(0, y1-5), min(w, x2+5), min(h, y2+5)]
+
+    gray = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
     score = 0
-    
-    # Marcos de lentes (líneas detectadas)
-    if lines is not None:
-        horizontal_lines = sum(1 for line in lines 
-                             if abs(line[0][1] - line[0][3]) < 5)  # Líneas horizontales
-        if horizontal_lines >= 2:
-            score += 40
-    
-    # Reflectividad (lentes con brillo)
-    if brightness > 130 and saturation < 70:  # Umbrales más flexibles
-        score += 30
-    
-    # Lentes oscuros (poca luz en ojos)
-    eye_left = gray[left_eye[:,1].min():left_eye[:,1].max(), 
-                   left_eye[:,0].min():left_eye[:,0].max()]
-    eye_right = gray[right_eye[:,1].min():right_eye[:,1].max(), 
-                    right_eye[:,0].min():right_eye[:,0].max()]
-    
-    if (np.mean(eye_left) < dark_threshold and 
-        np.mean(eye_right) < dark_threshold):
-        score += 30
 
-    # Debug visual
+    # === 3. CONTRASTE OJOS / ROSTRO ===
+    for idx_list in [left_eye_idx, right_eye_idx]:
+        x1, y1, x2, y2 = get_region(idx_list)
+        eye = gray[y1:y2, x1:x2]
+        if eye.size == 0:
+            continue
+        expand = 20
+        x1s, y1s = max(0, x1-expand), max(0, y1-expand)
+        x2s, y2s = min(w, x2+expand), min(h, y2+expand)
+        surround = gray[y1s:y2s, x1s:x2s]
+
+        eye_mean = np.mean(eye)
+        surround_mean = np.mean(surround)
+        ratio = eye_mean / (surround_mean + 1)
+        if ratio < 0.7:
+            score += 20
+        elif ratio < 0.85:
+            score += 10
+
+    # === 4. LÍNEAS DE MONTURA ===
+    x1b, y1b, x2b, y2b = get_region(left_brow_idx + right_brow_idx)
+    frame_zone = gray[y1b:y2b, x1b:x2b]
+    frame_zone = cv2.equalizeHist(frame_zone)  # ecualiza el histograma y mejora contraste
+
+    if frame_zone.size > 0:
+        edges = cv2.Canny(frame_zone, 70, 150)
+        lines = cv2.HoughLinesP(edges, 1, np.pi/180, threshold=30,
+                                minLineLength=(x2b-x1b)//3, maxLineGap=6)
+        if lines is not None:
+            horizontal = sum(
+                1 for l in lines
+                if abs(np.arctan2(l[0][3]-l[0][1], l[0][2]-l[0][0])*180/np.pi) < 12
+            )
+            if horizontal >= 2:
+                score += 30
+            elif horizontal == 1:
+                score += 15
+
+    # === 5. REFLEXIONES ===
+    hsv = cv2.cvtColor(rgb, cv2.COLOR_RGB2HSV)
+    reflections = np.sum((hsv[:, :, 1] < 70) & (hsv[:, :, 2] > 210))
+    reflection_ratio = reflections / (hsv.shape[0] * hsv.shape[1])
+    if reflection_ratio > 0.05:
+        score += 20
+    elif reflection_ratio > 0.03:
+        score += 10
+
+    # === 6. DECISIÓN FINAL ===
     if debug:
-        debug_img = face_image.copy() if len(face_image.shape) == 3 \
-                   else cv2.cvtColor(face_image, cv2.COLOR_GRAY2BGR)
-        cv2.rectangle(debug_img, (x1, y1), (x2, y2), (0, 255, 0), 2)
-        cv2.putText(debug_img, f"Score: {score}", (10, 30), 
-                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
-        cv2.imshow("Glasses Detection", debug_img)
-        cv2.waitKey(0)
+        print(f"👓 Score total: {score} (Umbral: 45)")
+    return score >= 45
 
-    return score >= 60  # Umbral más bajo para móviles
-def detect_headwear_fast(face_rgb, landmarks, k_int=25, k_var=200):
+
+
+def get_landmarks(image):
     """
-    Detección ligera de gorra/capucha optimizada para velocidad.
-    Combina diferencia de intensidad y textura.
+    Detecta landmarks faciales usando Mediapipe FaceMesh
+    """
+    with mp_face_mesh.FaceMesh(static_image_mode=True, max_num_faces=1) as face_mesh:
+        results = face_mesh.process(image)
+        if not results.multi_face_landmarks:
+            return None
+
+        landmarks = results.multi_face_landmarks[0].landmark
+        h, w, _ = image.shape
+
+        # Índices aproximados de ojos y cejas
+        left_eye_idx = [33, 133, 160, 159, 158, 157, 173]
+        right_eye_idx = [362, 263, 387, 386, 385, 384, 398]
+        left_brow_idx = [70, 63, 105, 66, 107]
+        right_brow_idx = [336, 296, 334, 293, 300]
+
+        def to_np(idx_list):
+            return np.array([[int(landmarks[i].x * w), int(landmarks[i].y * h)] for i in idx_list])
+
+        return {
+            'left_eye': to_np(left_eye_idx),
+            'right_eye': to_np(right_eye_idx),
+            'left_eyebrow': to_np(left_brow_idx),
+            'right_eyebrow': to_np(right_brow_idx)
+        }
+
+
+def detect_from_image(path):
+    """
+    Carga una imagen, detecta rostro y determina si tiene lentes
+    """
+    image_bgr = cv2.imread(path)
+    if image_bgr is None:
+        raise ValueError("No se pudo leer la imagen")
+
+    image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
+    landmarks = get_landmarks(image_rgb)
+    if not landmarks:
+        print("No se detectó rostro.")
+        return False
+
+    has_glasses = detect_glasses_selfie(image_rgb, landmarks, debug=True)
+    print("👓 Tiene lentes:", has_glasses)
+    return has_glasses
+
+
+if __name__ == "__main__":
+    # Ejemplo de uso con una imagen local
+    detect_from_image("rostro.jpg")
+
+
+def detect_headwear_improved(face_rgb, landmarks, debug=False):
+    """
+    Detección mejorada de gorras/sombreros para selfies
     """
     if 'forehead' not in landmarks or 'chin' not in landmarks:
         return False
 
     gray = cv2.cvtColor(face_rgb, cv2.COLOR_RGB2GRAY)
-
+    
+    # Mejorar contraste
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8,8))
+    gray = clahe.apply(gray)
+    
     forehead_y = landmarks['forehead'][0][1]
-    chin_y     = landmarks['chin'][-1][1]
-    face_h     = chin_y - forehead_y
+    chin_y = landmarks['chin'][-1][1]
+    face_height = chin_y - forehead_y
 
-    # --- 1. ROI superior más grande (40 % de la cara) ----------
-    top_h  = int(face_h * 0.40)
-    top_y1 = max(0, forehead_y - top_h)
-    top_roi  = gray[top_y1:forehead_y, :]
-
-    # --- 2. ROI de referencia en la frente ----------------------
-    ref_h  = int(face_h * 0.15)
-    face_roi = gray[forehead_y:forehead_y + ref_h, :]
+    # Definir regiones de análisis
+    top_region_height = int(face_height * 0.4)  # 40% superior
+    top_y1 = max(0, forehead_y - top_region_height)
+    top_roi = gray[top_y1:forehead_y, :]
+    
+    face_region_height = int(face_height * 0.3)  # 30% de la cara
+    face_roi = gray[forehead_y:forehead_y + face_region_height, :]
 
     if top_roi.size == 0 or face_roi.size == 0:
         return False
 
-    # --- 3. Métricas -------------------------------------------
-    diff_intensity = abs(np.mean(top_roi) - np.mean(face_roi))
-    diff_texture   = abs(np.var(top_roi)  - np.var(face_roi))
-
-    # Umbrales adaptativos: bajamos si la imagen es muy oscura
-    exposure = np.mean(gray)
-    adapt_int = k_int * (0.6 if exposure < 80 else 1.0)
-
-    return (diff_intensity > adapt_int) or (diff_texture > k_var)
-
+    score = 0
+    
+    # 1. ANÁLISIS DE INTENSIDAD (principal)
+    top_intensity = np.mean(top_roi)
+    face_intensity = np.mean(face_roi)
+    intensity_diff = abs(top_intensity - face_intensity)
+    
+    # Diferencia significativa de intensidad
+    if intensity_diff > 30:
+        score += 35
+    elif intensity_diff > 20:
+        score += 20
+    
+    # 2. ANÁLISIS DE TEXTURA
+    top_texture = np.var(top_roi)
+    face_texture = np.var(face_roi)
+    
+    # Gorras suelen tener textura diferente
+    if top_texture > face_texture * 2.0:
+        score += 25
+    elif top_texture < face_texture * 0.5:
+        score += 20
+    
+    # 3. DETECCIÓN DE BORDES (visera de gorra)
+    top_edges = cv2.Canny(top_roi, 50, 150)
+    face_edges = cv2.Canny(face_roi, 50, 150)
+    
+    # Buscar bordes horizontales en la parte superior
+    horizontal_kernel = np.ones((1, 15), np.uint8)
+    horizontal_edges = cv2.morphologyEx(top_edges, cv2.MORPH_OPEN, horizontal_kernel)
+    
+    horizontal_edge_ratio = np.sum(horizontal_edges > 0) / top_roi.size
+    
+    if horizontal_edge_ratio > 0.05:  # 5% de bordes horizontales
+        score += 20
+    
+    # 4. ANÁLISIS DE COLOR (gorras de colores)
+    hsv = cv2.cvtColor(face_rgb, cv2.COLOR_RGB2HSV)
+    top_hsv = hsv[top_y1:forehead_y, :]
+    face_hsv = hsv[forehead_y:forehead_y + face_region_height, :]
+    
+    # Diferencia de color
+    hue_diff = abs(np.mean(top_hsv[:,:,0]) - np.mean(face_hsv[:,:,0]))
+    sat_diff = abs(np.mean(top_hsv[:,:,1]) - np.mean(face_hsv[:,:,1]))
+    
+    if hue_diff > 20 or sat_diff > 40:
+        score += 15
+    
+    # 5. FORMA DE LA CABEZA
+    # Calcular el ancho en diferentes alturas
+    if 'chin' in landmarks and 'forehead' in landmarks:
+        chin_width = landmarks['chin'][-1][0] - landmarks['chin'][0][0]
+        forehead_width = landmarks['forehead'][-1][0] - landmarks['forehead'][0][0]
+        
+        # Con gorra, la parte superior suele ser más ancha
+        if forehead_width > chin_width * 1.2:
+            score += 15
+    
+    # Debug
+    if debug:
+        print(f"Headwear detection score: {score}")
+        debug_img = face_rgb.copy()
+        
+        # Dibujar regiones
+        cv2.rectangle(debug_img, (0, top_y1), (gray.shape[1], forehead_y), (255, 0, 0), 2)
+        cv2.rectangle(debug_img, (0, forehead_y), (gray.shape[1], forehead_y + face_region_height), (0, 255, 0), 2)
+        
+        cv2.putText(debug_img, f"Score: {score}", (10, 30), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+        cv2.imshow("Headwear Debug", debug_img)
+        cv2.waitKey(0)
+    
+    return score >= 50
 
 @router.get("/buscar-por-uid/{uid}")
 async def buscar_cliente_por_uid(uid: str):
@@ -530,7 +683,7 @@ def procesar_y_guardar_embedding(uid, imagen_file):
         logging.error(f"Error al guardar embedding: {e}")
         return False
 
-def calcular_nivel_enfoque(imagen, umbral=100):
+def calcular_nivel_enfoque(imagen, umbral=30):
     """Calcula el nivel de enfoque usando la varianza de Laplace"""
     gray = cv2.cvtColor(imagen, cv2.COLOR_BGR2GRAY)
     laplacian = cv2.Laplacian(gray, cv2.CV_64F)
@@ -631,3 +784,31 @@ async def comparar_imagen(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al comparar imágenes: {str(e)}")
+
+@router.put("/actualizarfscm/")
+async def actualizar_fscm(uid: str, fcm: str):
+    try:
+        # Lógica para actualizar el FSCM del cliente
+        cliente = Cliente.actualizar_fscm(uid, fcm)
+        if cliente:
+            return JSONResponse(status_code=200, content={              
+                "success": True,
+                "message": "FCM actualizado exitosamente"
+            })
+        else:
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "success": False,
+                    "message": "Cliente no encontrado para actualizar FCM"
+                }
+            )
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "success": False,
+                "message": "Error al actualizar FCM",
+                "error": str(e)
+            }
+        )

@@ -1,6 +1,6 @@
 from app.classes.Activerecord import Activerecord
 
-
+from psycopg2.extras import DictCursor
 class Carrito(Activerecord):
     
     TABLA = 'carrito'
@@ -23,7 +23,7 @@ class Carrito(Activerecord):
     def obtener_estado_por_id(cls, id_carrito: int) -> str:
         conexion = cls.obtener_conexion()
         try:
-            with conexion.cursor(dictionary=True) as cursor:
+            with conexion.cursor(cursor_factory=DictCursor) as cursor:
                 query = f"SELECT estado FROM {cls.TABLA} WHERE {cls.nombre_id} = %s"
                 cursor.execute(query, (id_carrito,))
                 resultado = cursor.fetchone()
@@ -47,7 +47,7 @@ class Carrito(Activerecord):
         """
         conexion = cls.obtener_conexion()
         try:
-            with conexion.cursor(dictionary=True) as cursor:
+            with conexion.cursor(cursor_factory=DictCursor) as cursor:
                 query = f"""
                     SELECT estado FROM {cls.TABLA}
                     WHERE id_cliente = %s
@@ -77,7 +77,7 @@ class Carrito(Activerecord):
         """
         conexion = cls.obtener_conexion()
         try:
-            with conexion.cursor(dictionary=True) as cursor:
+            with conexion.cursor(cursor_factory=DictCursor) as cursor:
                 query = f"""
                     SELECT id_carrito FROM {cls.TABLA}
                     WHERE id_cliente = %s
@@ -92,4 +92,22 @@ class Carrito(Activerecord):
             return 0
         finally:
             cls.liberar_conexion(conexion)
-    
+
+    @classmethod
+    def eliminar_carritos_por_cliente(cls, id_carrito: int) -> bool:
+        conexion = cls.obtener_conexion()
+        try:
+            with conexion.cursor() as cursor:
+                # ❌ ERROR: Estás usando SELECT en lugar de CALL
+                # ✅ CORRECTO: Usar CALL para procedures
+                query = "CALL limpiar_carrito(%s)"
+                cursor.execute(query, (id_carrito,))
+                conexion.commit()
+                return True
+                
+        except Exception as e:
+            print(f"Error al eliminar carritos: {e}")
+            conexion.rollback()
+            return False
+        finally:
+            cls.liberar_conexion(conexion)

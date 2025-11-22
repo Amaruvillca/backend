@@ -1,6 +1,7 @@
 from app.classes.ColorProducto import ColorProducto
 from app.classes.Activerecord import Activerecord
 from decimal import Decimal
+from psycopg2.extras import DictCursor
 
 class ProductoCarrito(Activerecord):
     TABLA = 'producto_carrito'
@@ -42,7 +43,7 @@ class ProductoCarrito(Activerecord):
     def actualizar_o_sumar_cantidad(cls, id_carrito: int, id_color_producto: int, talla: str, cantidad_a_sumar: int) -> bool:
         conexion = cls.obtener_conexion()
         try:
-            with conexion.cursor(dictionary=True) as cursor:
+            with conexion.cursor(cursor_factory=DictCursor) as cursor:
                 # Buscar si ya existe el producto en el carrito con esa talla
                 query = f"""
                     SELECT id_producto_carrito, cantidad, precio_unitario 
@@ -79,7 +80,7 @@ class ProductoCarrito(Activerecord):
         productos = []
         conexion = cls.obtener_conexion()
         try:
-            with conexion.cursor(dictionary=True) as cursor:
+            with conexion.cursor(cursor_factory=DictCursor) as cursor:
                 # Obtener el último carrito sin importar estado
                 query_ultimo_carrito = """
                     SELECT id_carrito, estado 
@@ -140,3 +141,51 @@ class ProductoCarrito(Activerecord):
             "descripcion": colorproducto[0] if colorproducto else " ",
             "imagen": colorproducto[1] if colorproducto else "",
         }
+
+    @classmethod
+    def actualizar_cantidad(cls, id_producto_carrito: int, incremento_cantidad: int) -> bool:
+        """
+        Incrementa o decrementa la cantidad de un producto en el carrito
+    
+        Args:
+            id_producto_carrito: ID del producto en el carrito
+            incremento_cantidad: Cantidad a sumar/restar (puede ser negativo)
+        
+        Returns:
+            bool: True si se actualizó correctamente
+        """
+        conexion = cls.obtener_conexion()
+        try:
+            with conexion.cursor(cursor_factory=DictCursor) as cursor:
+                # 1. Obtener el producto actual
+                producto_carrito = ProductoCarrito.find(id_producto_carrito)
+                if not producto_carrito:
+                    return False  # No se encontró el producto
+                
+                # 2. Calcular la nueva cantidad
+                cantidad_final = producto_carrito.cantidad + incremento_cantidad
+                
+                # 3. Si la cantidad final es <= 0, eliminar el producto
+                if cantidad_final <= 0:
+                    return cls.borrar(id_producto_carrito)
+                
+                # 4. Calcular el NUEVO precio total CORRECTAMENTE
+                # El precio total debe ser: cantidad_final * precio_unitario
+                nuevo_precio_total = cantidad_final * producto_carrito.precio_unitario
+                
+                # 5. Actualizar la cantidad y el precio total
+                update_query = f"""
+                    UPDATE {cls.TABLA} 
+                    SET cantidad = %s, precio_total = %s
+                    WHERE id_producto_carrito = %s
+                """
+                cursor.execute(update_query, (cantidad_final, nuevo_precio_total, id_producto_carrito))
+                conexion.commit()
+                return True
+                
+        except Exception as e:
+            print(f"Error en actualizar_cantidad: {e}")
+            conexion.rollback()
+            return False
+        finally:
+            cls.liberar_conexion(conexion)

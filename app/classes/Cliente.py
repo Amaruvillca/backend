@@ -1,6 +1,7 @@
 from app.classes.Activerecord import Activerecord
 import datetime
-
+import psycopg2
+from psycopg2.extras import DictCursor
 
 class Cliente(Activerecord):
     nombre_id = 'id_cliente'
@@ -56,7 +57,7 @@ class Cliente(Activerecord):
         """
         conexion = cls.obtener_conexion()
         try:
-            with conexion.cursor(dictionary=True) as cursor:
+            with conexion.cursor(cursor_factory=DictCursor) as cursor:
                 query = f"SELECT * FROM {cls.TABLA} WHERE uid = %s"
                 cursor.execute(query, (uid,))
                 registro = cursor.fetchone()
@@ -92,37 +93,37 @@ class Cliente(Activerecord):
         finally:
             cls.liberar_conexion(conexion)
             
+
+
     @classmethod
     def has_imagen(cls, uid: str) -> bool:
-        """
-        Devuelve True si el cliente con el UID dado tiene un valor válido
-        en imagen_cliente (no NULL, no vacío y no solo espacios).
-        Devuelve False en caso contrario o si ocurre algún error.
-
-        Args:
-            uid (str): UID del cliente a verificar.
-
-        Returns:
-            bool: True si existe una imagen registrada, False en caso contrario.
-        """
         conexion = cls.obtener_conexion()
         try:
-            with conexion.cursor(dictionary=True) as cursor:
+            # Usar DictCursor explícitamente para PostgreSQL
+            with conexion.cursor(cursor_factory=DictCursor) as cursor:
                 query = f"SELECT imagen_cliente FROM {cls.TABLA} WHERE uid = %s"
                 cursor.execute(query, (uid,))
                 fila = cursor.fetchone()
-
+    
                 if not fila:
-                    # No se encontró el cliente
                     return False
-
+    
                 valor = fila["imagen_cliente"]
-                return bool(valor and valor.strip())
+                
+                if not valor:
+                    return False
+                    
+                if isinstance(valor, str) and not valor.strip():
+                    return False
+                    
+                return True
+                    
         except Exception as e:
-            print(f"Error en has_imagen(): {e}")
+            print(f"💥 Error en has_imagen(): {e}")
             return False
         finally:
-            cls.liberar_conexion(conexion)
+            if conexion:
+                cls.liberar_conexion(conexion)
 
     @classmethod
     def find_id_by_uid(cls, uid: str) -> int:
@@ -137,7 +138,7 @@ class Cliente(Activerecord):
         """
         conexion = cls.obtener_conexion()
         try:
-            with conexion.cursor(dictionary=True) as cursor:
+            with conexion.cursor(cursor_factory=DictCursor) as cursor:
                 query = f"SELECT id_cliente FROM {cls.TABLA} WHERE uid = %s LIMIT 1"
                 cursor.execute(query, (uid,))
                 resultado = cursor.fetchone()
@@ -145,6 +146,31 @@ class Cliente(Activerecord):
         except Exception as e:
             print(f"Error en find_id_by_uid(): {e}")
             return ""
+        finally:
+            cls.liberar_conexion(conexion)
+    
+    @classmethod
+    def actualizar_fscm(cls, uid: str, fcm_token: str) -> bool:
+        """
+        Actualiza el token FCM de un cliente identificado por su UID.
+
+        Args:
+            uid (str): El UID del cliente.
+            fcm_token (str): El nuevo token FCM.
+
+        Returns:
+            bool: True si se actualizó correctamente, False en caso contrario.
+        """
+        conexion = cls.obtener_conexion()
+        try:
+            with conexion.cursor() as cursor:
+                query = f"UPDATE {cls.TABLA} SET fcm_token = %s WHERE uid = %s"
+                cursor.execute(query, (fcm_token, uid))
+                conexion.commit()
+                return cursor.rowcount > 0
+        except Exception as e:
+            print(f"Error en actualizar_fscm(): {e}")
+            return False
         finally:
             cls.liberar_conexion(conexion)
 

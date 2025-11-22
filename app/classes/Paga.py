@@ -1,5 +1,5 @@
 from app.classes.Activerecord import Activerecord
-
+from psycopg2.extras import DictCursor
 
 class Paga(Activerecord):
     TABLA = 'paga'
@@ -29,3 +29,24 @@ class Paga(Activerecord):
         self.fecha_pago = fecha_pago
         self.id_cliente = id_cliente
         self.id_carrito = id_carrito
+
+    @classmethod
+    def obtener_pagos_por_uid(cls, uid: str):
+        conexion = cls.obtener_conexion()
+        try:
+            with conexion.cursor(cursor_factory=DictCursor) as cursor:
+                query = f"""SELECT p.* FROM {cls.TABLA} p
+                INNER JOIN carrito c ON p.id_carrito = c.id_carrito
+                INNER JOIN cliente cl ON c.id_cliente = cl.id_cliente
+                WHERE cl.uid = %s
+                AND c.estado = 'pagado'
+                ORDER BY p.fecha_pago DESC
+                """
+                cursor.execute(query, (uid,))
+                resultados = cursor.fetchall()
+                return [cls(**fila) for fila in resultados]
+        except Exception as e:
+            print(f"Error al obtener pagos por UID: {e}")
+            return []
+        finally:
+            cls.liberar_conexion(conexion)

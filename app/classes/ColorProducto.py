@@ -1,6 +1,6 @@
 from app.classes.Activerecord import Activerecord
 
-
+from psycopg2.extras import DictCursor
 class ColorProducto(Activerecord):
     TABLA = 'color_producto'
     nombre_id = 'id_color_producto'
@@ -20,7 +20,7 @@ class ColorProducto(Activerecord):
     def buscar_descripcion_e_imagen(cls, id_color_producto: int) -> list[str]:
         conexion = cls.obtener_conexion()
         try:
-            with conexion.cursor(dictionary=True) as cursor:
+            with conexion.cursor(cursor_factory=DictCursor) as cursor:
                 consulta = f"""
                     SELECT descripcion, imagen 
                     FROM {cls.TABLA} 

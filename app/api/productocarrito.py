@@ -11,6 +11,7 @@ import shutil
 import json
 import os
 
+from app.classes.Activerecord import Activerecord
 from app.classes.ProductoCarrito import ProductoCarrito
 from app.classes.Carrito import Carrito
 from app.classes.Cliente import Cliente
@@ -39,7 +40,14 @@ def eliminarProductoCarrito(id: int):
     
 @router.post('/{uid}')
 async def crearProductoCarrito(uid: str, request: Request):
+    
     data = await request.json()
+    mensaje = Activerecord.enviar_notificacion(
+        token="eRaR2eZVSNWCVOK3puKza0:APA91bETnpAWqiHXShVqYasB--KQR8xCKSazW1_r7QhmtXcIRAGdAL7bxepX5tt9_HEmaFtv45k-DHlB89fx_ncyuR8OqpuSzB-xvWCf7vbRks-YHMMdiW0",
+        titulo="Nuevo producto agregado",
+        cuerpo="Se ha agregado un nuevo producto a su carrito",
+        image="https://images.unsplash.com/photo-1689308271305-58e75832289b?fm=jpg&q=60&w=3000&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1yZWxhdGVkfDE1fHx8ZW58MHx8fHx8"
+    )
 
     cliente = Cliente.find_by_uid(uid)
     if not cliente:
@@ -120,5 +128,14 @@ async def obtenerProductosCarrito(uid: str):
             "data": productos_dicts
         }
     )
+    
+@router.put('/')
+def actualizarProductoCarrito_cantidad(id_producto_carrito: int , cantidad: int):
+    if(ProductoCarrito.actualizar_cantidad(id_producto_carrito, cantidad)):
+        return {
+            "message": "ProductoCarrito actualizado exitosamente"
+        }
+    else:
+        raise HTTPException(status_code=500, detail="No se pudo actualizar el producto")
 
 

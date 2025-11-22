@@ -14,9 +14,10 @@ import os
 from pathlib import Path
 
 # Import API routers
-from app.api import categorias, productos, sucursal, colorProducto, tallaProducto, clientes, paga, carrito, productocarrito
+from app.api import categorias, productos, sucursal, colorProducto, tallaProducto, clientes, paga, carrito, productocarrito, qr_transacion
 from app.classes.Productos import Producto
 
+from app.config.gmail_client import GmailClient
 from app.config.headers_middlware import HeadersMiddleware
 from app.config.swagger_security import swagger_headers
 
@@ -70,6 +71,7 @@ mount_directory("img/clientes", "/img/clientes", "img_clientes")
 mount_directory("img/personal", "/img/personal", "img_personal")
 mount_directory("img/categorias", "/img/categorias", "img_categorias")
 mount_directory("img/baner_producto", "/img/baner_producto", "img_baner_producto")
+mount_directory("img/qr", "/img/qr", "qr")
 
 # Include API routers
 app.include_router(productos.router, prefix="/productos", tags=["productos"])
@@ -81,11 +83,27 @@ app.include_router(clientes.router, prefix="/clientes", tags=["clientes"])
 app.include_router(paga.router, prefix="/pagar", tags=["pagar"])
 app.include_router(carrito.router, prefix="/carrito", tags=["carrito"])
 app.include_router(productocarrito.router, prefix="/productocarrito", tags=["productoscarrito"])
+app.include_router(qr_transacion.router, prefix="/qr_transactions", tags=["qr_transactions"])
+
 
 # Root endpoint
 @app.get("/")
 def read_root():
-    return "Welcome to LookMarket"
+    
+
+# Crear cliente Gmail
+    gmail = GmailClient()
+
+# Probar conexión
+    gmail.test_connection()
+
+# Obtener los 5 correos más recientes
+    emails = gmail.list_emails(max_results=5)
+    for e in emails:
+        print(f"📬 {e['from']} - {e['subject']} ({e['date']})")
+
+    
+    return {"message": "Welcome to FaceLoock API!"}
 
 # -----------------------------------------------
 # IMAGE COMPARISON FUNCTIONALITY

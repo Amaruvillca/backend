@@ -8,3 +8,7 @@ __pycache__/
 **/__pycache__/
 .idea/
 .env
+token.json
+.vscode/
+client_secret.json
+service-account-key.json
