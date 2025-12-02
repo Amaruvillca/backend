@@ -301,5 +301,66 @@ class Activerecord(ABC):
             logger.error(f"Error enviando notificación: {e}")
             return False
     
-    
-        
+    @classmethod
+    def buscar_uno(cls, condiciones: str):
+        conexion = cls.obtener_conexion()
+        try:
+            with conexion.cursor() as cursor:
+                query = f"SELECT * FROM {cls.TABLA} WHERE {condiciones} LIMIT 1"
+                cursor.execute(query)
+                registro = cursor.fetchone()
+                if registro:
+                    column_names = [desc[0] for desc in cursor.description]
+                    registro_dict = dict(zip(column_names, registro))
+                    return cls.crear_objeto(registro_dict)
+                return None
+        except Exception as e:
+            print(f'Error in buscar_uno(): {e}')
+            return None
+        finally:
+            cls.liberar_conexion(conexion)
+
+    @classmethod
+    def buscar_todos(cls, condiciones: str = None, orden: str = None, limite: int = None) -> List:
+        conexion = cls.obtener_conexion()
+        try:
+            with conexion.cursor() as cursor:
+                query = f"SELECT * FROM {cls.TABLA}"
+                if condiciones:
+                    query += f" WHERE {condiciones}"
+                if orden:
+                    query += f" ORDER BY {orden}"
+                else:
+                    query += f" ORDER BY {cls.nombre_id} DESC"
+                if limite:
+                    query += f" LIMIT {limite}"
+                
+                cursor.execute(query)
+                resultados = cursor.fetchall()
+                column_names = [desc[0] for desc in cursor.description]
+                dict_resultados = [dict(zip(column_names, row)) for row in resultados]
+                return [cls.crear_objeto(fila) for fila in dict_resultados]
+        except Exception as e:
+            print(f'Error in buscar_todos(): {e}')
+            return []
+        finally:
+            cls.liberar_conexion(conexion)
+
+    @classmethod
+    def actualizar_where(cls, datos: Dict, condiciones: str) -> bool:
+        conexion = cls.obtener_conexion()
+        try:
+            with conexion.cursor() as cursor:
+                set_clause = ', '.join([f"{key} = %s" for key in datos.keys()])
+                values = list(datos.values())
+                
+                query = f"UPDATE {cls.TABLA} SET {set_clause} WHERE {condiciones}"
+                cursor.execute(query, values)
+                conexion.commit()
+                return cursor.rowcount > 0
+        except Exception as e:
+            print(f'Error in actualizar_where(): {e}')
+            conexion.rollback()
+            return False
+        finally:
+            cls.liberar_conexion(conexion)

@@ -166,7 +166,7 @@ class GmailClient:
         """
         try:
             message = self.service.users().messages().get(
-                userId='me', id=message_id, format='metadata'
+                userId='me', id=message_id, format='full'
             ).execute()
             return self._parse_email_data(message)
         except HttpError as error:
@@ -205,7 +205,8 @@ class GmailClient:
                         body = base64.urlsafe_b64decode(data).decode()
                         break
         else:
-            data = payload['body'].get('data')
+            body_data = payload.get('body', {})
+            data = body_data.get('data')
             if data:
                 body = base64.urlsafe_b64decode(data).decode()
         

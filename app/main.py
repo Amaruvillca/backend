@@ -26,7 +26,9 @@ from app.config.swagger_security import swagger_headers
 
 from fastapi import FastAPI, Header, HTTPException
 
-
+origins = [
+    "http://localhost:3000",  # tu frontend
+]
 
 
 
@@ -160,6 +162,32 @@ def load_or_build_features_cache():
 
 # Initialize cache on startup
 load_or_build_features_cache()
+def add_image_to_cache(image_path: str, filename: str):
+    """Add a new image to the features cache"""
+    # global FEATURES_CACHE
+
+    try:
+        image = Image.open(image_path).convert("RGB")
+        features = extract_features(image)
+        FEATURES_CACHE[filename] = features.cpu().numpy()
+        
+        # Save updated cache
+        with open(CACHE_FILE, "wb") as f:
+            pickle.dump(FEATURES_CACHE, f)
+        
+        print(f"✅ Imagen {filename} añadida a la caché de características")
+        return True
+    except Exception as e:
+        print(f"❌ Error añadiendo imagen {filename} a la caché: {e}")
+        return False
+
+def get_features_cache():
+    """Get the current features cache"""
+    return FEATURES_CACHE
+
+def update_features_cache():
+    """Force cache update"""
+    load_or_build_features_cache()
 
 def compare_images(uploaded_features: torch.Tensor, threshold: float = 0.8) -> list:
     """Compare uploaded image features with cached features"""

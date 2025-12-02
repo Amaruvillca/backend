@@ -14,6 +14,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 # Ruta a la carpeta de imágenes
 RUTA_BANNER = BASE_DIR / "img" / "baner_producto"
 RUTA_PRODUCTO = BASE_DIR / "img" / "productos"
+RUTA_PRODUCTO_V = BASE_DIR / "img" / "producto_v"
+CACHE_FILE = BASE_DIR / "image_features_cache.pkl"
 
 router = APIRouter()
 
@@ -244,3 +246,68 @@ def obtener_productos_paginados(pagina: int):
         "message": "Datos recuperados exitosamente",
         "data": [producto.__dict__ for producto in productos]
     }
+
+@router.post('/guardar_imagen_producto/')
+async def guardar_imagen_producto(imagen: UploadFile = File(...)):
+    """Guarda una imagen en la carpeta de productos y la añade al caché de características"""
+    try:
+        # Verificar que la carpeta exista
+        os.makedirs(RUTA_PRODUCTO, exist_ok=True)
+        
+        # ✅ MANTENER EL NOMBRE ORIGINAL del archivo
+        nombre_archivo = imagen.filename
+        ruta_imagen = RUTA_PRODUCTO / nombre_archivo
+        
+        # Guardar la imagen
+        with open(ruta_imagen, "wb") as f:
+            contenido = await imagen.read()
+            f.write(contenido)
+        
+        print(f"✅ Imagen guardada en: {ruta_imagen}")
+        
+        # ✅ ACTUALIZAR EL CACHÉ usando la función de main.py
+        import sys
+        sys.path.append(str(Path(__file__).resolve().parent.parent))
+        from main import add_image_to_cache
+        
+        # Añadir imagen a la caché de características
+        cache_exitosa = add_image_to_cache(str(ruta_imagen), nombre_archivo)
+        
+        return {
+            "message": "Imagen guardada exitosamente",
+            "filename": nombre_archivo,  # ✅ Nombre original
+            "path": str(ruta_imagen),
+            "cache_updated": cache_exitosa
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al guardar imagen: {str(e)}")
+    
+@router.post('/guardar_imagen_producto_variante/')
+async def guardar_imagen_producto_variante(imagen: UploadFile = File(...)):
+    """Guarda una imagen en la carpeta de productos y la añade al caché de características"""
+    try:
+        # Verificar que la carpeta exista
+        os.makedirs(RUTA_PRODUCTO, exist_ok=True)
+        
+        # ✅ MANTENER EL NOMBRE ORIGINAL del archivo
+        nombre_archivo = imagen.filename
+        ruta_imagen = RUTA_PRODUCTO_V / nombre_archivo
+        
+        # Guardar la imagen
+        with open(ruta_imagen, "wb") as f:
+            contenido = await imagen.read()
+            f.write(contenido)
+        
+        print(f"✅ Imagen guardada en: {ruta_imagen}")
+        
+        
+        
+        return {
+            "message": "Imagen guardada exitosamente",
+            "filename": nombre_archivo,  # ✅ Nombre original
+            "path": str(ruta_imagen),
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al guardar imagen: {str(e)}")

@@ -4,29 +4,15 @@ import os
 from dotenv import load_dotenv
 load_dotenv()
 
-print("🔍 DEBUG - Variables de entorno cargadas:")
-print(f"DB_HOST: '{os.getenv('DB_HOST')}'")
-print(f"DB_PORT: '{os.getenv('DB_PORT')}'") 
-print(f"DB_USER: '{os.getenv('DB_USER')}'")
-print(f"DB_NAME: '{os.getenv('DB_NAME')}'")
-
 class Conexion:
-   # DATABASE = os.getenv('DB_NAME', 'tienda2')  # Valor por defecto 'tienda2'
-    #USERNAME = os.getenv('DB_USER', 'postgres') # Valor por defecto 'postgres'
-    #PASSWORD = os.getenv('DB_PASSWORD', 'root') # Valor por defecto 'root'
-    #DB_PORT = int(os.getenv('DB_PORT', '5432')) # PostgreSQL usa puerto 5432 por defecto
-    #HOST = os.getenv('DB_HOST', 'localhost')    # Valor por defecto 'localhost'
-    #POOL_SIZE = int(os.getenv('POOL_SIZE', '30')) # Tamaño del pool
-    #POOL_NAME = 'tienda_online_pool' # Nombre del pool (psycopg2 no usa nombre)
-    #pool = None
     
-    DATABASE = 'tienda2'  # Valor por defecto 'tienda2'
-    USERNAME = 'root' # Valor por defecto 'postgres'
-    PASSWORD = 'root' # Valor por defecto 'root'
-    DB_PORT = 5432 # PostgreSQL usa puerto 5432 por defecto
-    HOST = 'localhost'    # Valor por defecto 'localhost'
-    POOL_SIZE = 30 # Tamaño del pool
-    POOL_NAME = 'tienda_online_pool' # Nombre del pool (psycopg2 no usa nombre)
+    DATABASE = os.getenv('DB_NAME', 'tienda_online')
+    USERNAME = os.getenv('DB_USER', 'root')
+    PASSWORD = os.getenv('DB_PASSWORD', 'root')
+    DB_PORT = int(os.getenv('DB_PORT', '5430'))
+    HOST = os.getenv('DB_HOST', 'localhost')
+    POOL_SIZE = int(os.getenv('POOL_SIZE', '3'))
+    POOL_NAME = 'tienda_online_pool'
     pool = None
 
     @classmethod
